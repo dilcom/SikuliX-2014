@@ -69,8 +69,8 @@ public class JythonScriptRunner implements IScriptRunner {
         "require 'rukuli'\n" +
         "require 'sikulix'\n" +
         "Rukuli::Config.run do |config|\n" +
-        "  config.image_path = SIKULI_PROJECT_IMAGES\n" +
-        "  config.logging = false\n" +
+        "  config.image_path = SIKULI_IMAGE_PATH + '/'\n" +
+        "  config.logging = true\n" +
         "end\n";
 
     private static ArrayList<String> codeBefore = null;
@@ -148,7 +148,8 @@ public class JythonScriptRunner implements IScriptRunner {
             //run the Ruby statements from argv (special for setup functional test)
             fillSysArgv(null, null);            
             createScriptingContainer();
-            interpreter.put("SIKULI_PROJECT_IMAGES", imagePath.getAbsolutePath());
+            interpreter.put("SIKULI_IMAGE_PATH", 
+                    imagePath.getAbsolutePath());
             executeScriptHeader(new String[0]);
             SikuliX.displaySplash(null);
             return runRuby(null, argv, null);
@@ -156,7 +157,8 @@ public class JythonScriptRunner implements IScriptRunner {
         ruFile = new File(ruFile.getAbsolutePath());
         fillSysArgv(ruFile, argv);
         createScriptingContainer();
-        interpreter.put("SIKULI_PROJECT_IMAGES", imagePath.getAbsolutePath());
+        interpreter.put("SIKULI_IMAGE_PATH", 
+                imagePath.getAbsolutePath());
         if (forIDE == null) {
             executeScriptHeader(new String[]{
                 ruFile.getParentFile().getAbsolutePath(),
