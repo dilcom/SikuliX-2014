@@ -16,6 +16,8 @@ import java.util.Arrays;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.List;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 /*
  import org.python.core.PyList;
  import org.python.util.PythonInterpreter;
@@ -203,16 +205,16 @@ public class JythonScriptRunner implements IScriptRunner {
                         EvalUnit unit = interpreter.parse(ruFile.getAbsolutePath());
                         //unit.run();
                     } else {
-                        /*if (scriptPaths.length > 1) {
+                        if (scriptPaths.length > 1) {
                             String scr = FileManager.slashify(scriptPaths[0], true) + scriptPaths[1] + ".sikuli";
                             log(lvl, "runRuby: running script from IDE: \n" + scr);
                             fromIDE = true;
-                            interpreter.runScriptlet("sys.argv[0] = \""
-                                    + scr + "\"");                            
+                            //interpreter.runScriptlet("sys.argv[0] = \""
+                            //        + scr + "\"");                            
                         } else {
                             log(lvl, "runRuby: running script: \n" + scriptPaths[0]);
-                            interpreter.runScriptlet("sys.argv[0] = \"" + scriptPaths[0] + "\"");
-                        }*/
+                            //interpreter.runScriptlet("sys.argv[0] = \"" + scriptPaths[0] + "\"");
+                        }
                         interpreter.runScriptlet(PathType.ABSOLUTE, ruFile.getAbsolutePath());
                     }
                 } else {
@@ -231,7 +233,21 @@ public class JythonScriptRunner implements IScriptRunner {
             } else {
                 //log(-1,_I("msgStopped"));
                 if (null != ruFile) {
-                    exitCode = findErrorSource(e, ruFile.getAbsolutePath(), scriptPaths);
+                    exitCode = findErrorSource(e,
+                            ruFile.getAbsolutePath(), scriptPaths);
+/*                    Throwable thr = e.getCause();
+                    //thr.printStackTrace();
+                    StackTraceElement[] stack = thr.getStackTrace();
+                    Debug.info(thr.getMessage());
+                    Debug.info(stack.toString());
+                    if (stack.length != 0) {
+                        errorColumn = -1;
+                        errorLine = stack[stack.length-1].getLineNumber();
+                        exitCode =  errorLine;
+                        errorClass = PY_RUNTIME;
+                        this.errorText = thr.getMessage();
+                        errorType = "--UnKnown--";
+                    }*/
                 } else {
                     Debug.error("runRuby: Ruby exception: %s with %s", e.getMessage(), stmt);
                 }
@@ -246,9 +262,8 @@ public class JythonScriptRunner implements IScriptRunner {
     }
 
     private int findErrorSource(Throwable thr, String filename, String[] forIDE) {
-        String err = thr.toString();
-//      log(-1,"------------- Traceback -------------\n" + err +
-//              "------------- Traceback -------------\n");
+        String err = thr.getMessage();
+
         errorLine = -1;
         errorColumn = -1;
         errorClass = PY_UNKNOWN;
@@ -256,49 +271,50 @@ public class JythonScriptRunner implements IScriptRunner {
         errorText = "--UnKnown--";
 
         String msg;
-        Matcher mFile = null;
 
-        if (err.startsWith("Traceback")) {
-            Pattern pError = Pattern.compile(NL + "(.*?):.(.*)$");
-            mFile = pFile.matcher(err);
-            if (mFile.find()) {
-                log(lvl + 2, "Runtime error line: " + mFile.group(2)
-                        + "\n in function: " + mFile.group(3)
-                        + "\n statement: " + mFile.group(4));
-                errorLine = Integer.parseInt(mFile.group(2));
-                errorClass = PY_RUNTIME;
-                Matcher mError = pError.matcher(err);
-                if (mError.find()) {
-                    log(lvl + 2, "Error:" + mError.group(1));
-                    log(lvl + 2, "Error:" + mError.group(2));
-                    errorType = mError.group(1);
-                    errorText = mError.group(2);
-                } else {
-//org.sikuli.core.FindFailed: FindFailed: can not find 1352647716171.png on the screen
-                    Pattern pFF = Pattern.compile(": FindFailed: (.*?)" + NL);
-                    Matcher mFF = pFF.matcher(err);
-                    if (mFF.find()) {
-                        errorType = "FindFailed";
-                        errorText = mFF.group(1);
-                    } else {
-                        errorClass = PY_UNKNOWN;
-                    }
-                }
-            }
-        } else if (err.startsWith("SyntaxError")) {
-            Pattern pLineS = Pattern.compile(", (\\d+), (\\d+),");
+        if (err.startsWith("(SyntaxError)")) {
+            //org.jruby.parser.ParserSyntaxException
+            //(SyntaxError) /tmp/sikuli-3213678404470696048.py:2: syntax error, unexpected tRCURLY
+
+            Pattern pLineS = Pattern.compile("(?<=:)(.*):(.*)");
             java.util.regex.Matcher mLine = pLineS.matcher(err);
             if (mLine.find()) {
                 log(lvl + 2, "SyntaxError error line: " + mLine.group(1));
-                Pattern pText = Pattern.compile("\\((.*?)\\(");
-                java.util.regex.Matcher mText = pText.matcher(err);
-                mText.find();
-                errorText = mText.group(1) == null ? errorText : mText.group(1);
+                errorText = mLine.group(2) == null ? errorText : mLine.group(2);
                 log(lvl + 2, "SyntaxError: " + errorText);
                 errorLine = Integer.parseInt(mLine.group(1));
-                errorColumn = Integer.parseInt(mLine.group(2));
+                errorColumn = -1;
                 errorClass = PY_SYNTAX;
-                errorType = "SyntaxError";
+                errorType = "SyntaxError";                
+            }     
+        } else { 
+            //if (err.startsWith("(NameError)")) {
+            // org.jruby.embed.EvalFailedException
+            //(NameError) undefined local variable or method `asdf' for main:Object
+            
+            Pattern type = Pattern.compile("(?<=\\()(\\w*)");
+            java.util.regex.Matcher mLine = type.matcher(err);
+            if (mLine.find()) {
+                errorType = mLine.group(1);
+            }
+            Throwable cause = thr.getCause();
+            //cause.printStackTrace();
+            for (StackTraceElement line : cause.getStackTrace()) {
+                if (line.getFileName().equals(filename)) {
+                    errorText = cause.getMessage();
+                    errorColumn = -1;
+                    errorLine = line.getLineNumber();
+                    errorClass = PY_RUNTIME;
+                    this.errorText = thr.getMessage();
+
+                    if (errorType.equals("Rukuli::ImageNotFound")) {
+                        errorType = "FindFailed";
+                    } else if (errorType.equals("RuntimeError")) {
+                        errorClass = PY_JAVA;
+                    }
+                    //errorType = "NameError";
+                    break;
+                }
             }
         }
 
@@ -320,10 +336,31 @@ public class JythonScriptRunner implements IScriptRunner {
             Debug.error(msg);
             Debug.error(errorType + " ( " + errorText + " )");
             if (errorClass == PY_RUNTIME) {
-                errorClass = findErrorSourceWalkTrace(mFile, filename);
+            Throwable cause = thr.getCause();
+            //cause.printStackTrace();
+            StackTraceElement[] stack = cause.getStackTrace();
+            /*StringWriter writer = new StringWriter();
+            PrintWriter out = new PrintWriter(writer);                    
+            cause.printStackTrace(out);
+            errorTrace = writer.toString();*/
+            StringBuilder builder = new StringBuilder();
+            for (StackTraceElement line : stack) {
+                builder.append(line.getLineNumber());
+                builder.append(":\t");
+                builder.append(line.getClassName());
+                builder.append(" ( ");
+                builder.append(line.getMethodName());
+                builder.append(" )\t");
+                builder.append(line.getFileName());
+                builder.append('\n');
+            }
+            errorTrace = builder.toString();
                 if (errorTrace.length() > 0) {
                     Debug.error("--- Traceback --- error source first\n"
-                            + "line: module ( function ) statement \n" + errorTrace
+                            + "line: class ( method ) file \n" + errorTrace
+                            + "[error] --- Traceback --- end --------------");
+                    log(lvl + 2, "--- Traceback --- error source first\n"
+                            + "line: class ( method ) file \n" + errorTrace
                             + "[error] --- Traceback --- end --------------");
                 }
             }
@@ -334,60 +371,6 @@ public class JythonScriptRunner implements IScriptRunner {
             Debug.error(err);
         }
         return errorLine;
-    }
-
-    private int findErrorSourceWalkTrace(Matcher m, String filename) {
-//[error] Traceback (most recent call last):
-//File "/var/folders/wk/pcty7jkx1r5bzc5dvs6n5x_40000gn/T/sikuli-tmp3464751893408897244.py", line 2, in
-//sub.hello()
-//File "/Users/rhocke/NetBeansProjects/RaiManSikuli2012-Script/sub.sikuli/sub.py", line 4, in hello
-//print "hello from sub", 1/0
-//ZeroDivisionError: integer division or modulo by zero
-        Pattern pModule = Pattern.compile(".*/(.*?).py");
-        //Matcher mFile = pFile.matcher(etext);
-        String mod;
-        String modIgnore = "SikuliImporter,";
-        StringBuilder trace = new StringBuilder();
-        String telem;
-        while (m.find()) {
-            if (m.group(1).equals(filename)) {
-                mod = "main";
-            } else {
-                Matcher mModule = pModule.matcher(m.group(1));
-                mModule.find();
-                mod = mModule.group(1);
-                if (modIgnore.contains(mod + ",")) {
-                    continue;
-                }
-            }
-            telem = m.group(2) + ": " + mod + " ( "
-                    + m.group(3) + " ) " + m.group(4) + NL;
-            //log(lvl,telem);
-            trace.insert(0, telem);
-//        log(lvl,"Rest of Trace ----\n" + etext.substring(mFile.end()));
-        }
-        log(lvl + 2, "------------- Traceback -------------\n" + trace);
-        errorTrace = trace.toString();
-        return errorClass;
-    }
-
-    private void findErrorSourceFromJavaStackTrace(Throwable thr, String filename) {
-        log(-1, "findErrorSourceFromJavaStackTrace: seems to be an error in the Java API supporting code");
-        StackTraceElement[] s;
-        Throwable t = thr;
-        while (t != null) {
-            s = t.getStackTrace();
-            log(lvl + 2, "stack trace:");
-            for (int i = s.length - 1; i >= 0; i--) {
-                StackTraceElement si = s[i];
-                log(lvl + 2, si.getLineNumber() + " " + si.getFileName());
-                if (si.getLineNumber() >= 0 && filename.equals(si.getFileName())) {
-                    errorLine = si.getLineNumber();
-                }
-            }
-            t = t.getCause();
-            log(lvl + 2, "cause: " + t);
-        }
     }
 
     @Override
