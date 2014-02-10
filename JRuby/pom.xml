@@ -3,10 +3,10 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   
   <!--
-  * Copyright 2010-2013, Sikuli.org
+  * Copyright 2010-2014, Sikuli.org
   * Released under the MIT License.
   *
-  * kelthuzad, RaiMan 2013
+  * xxx, RaiMan 2014
   -->
 
 	<parent>
@@ -19,15 +19,15 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.sikuli</groupId>
-  <artifactId>SikuliX-Jython</artifactId>
-  <name>SikuliX-Jython</name>
+  <artifactId>SikuliX-JRuby</artifactId>
+  <name>SikuliX-JRuby</name>
   <version>1.1.0</version>
 
   <developers>
     <developer>
-      <id>kelthuzad</id>
-      <name>kelthuzad</name>
-      <email>j_the_k@web.de</email>
+      <id>xxx</id>
+      <name>yyy</name>
+      <email>zzz@web.de</email>
     </developer>
   </developers>
 
@@ -42,6 +42,7 @@
       <artifactId>jruby-complete</artifactId>
       <version>1.7.10</version>
     </dependency>
+
   </dependencies>
 
 </project>
