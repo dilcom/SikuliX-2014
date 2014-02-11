@@ -22,6 +22,7 @@ import java.util.regex.Pattern;
 import java.util.List;
 //import java.io.PrintWriter;
 //import java.io.StringWriter;
+import java.io.FileReader;
 
 import org.sikuli.basics.FileManager;
 import org.sikuli.basics.Settings;
@@ -247,6 +248,7 @@ public class JRubyScriptRunner implements IScriptRunner {
         int exitCode = 0;
         String stmt = "";
         boolean fromIDE = false;
+        String filename = "<script>";
         try {
             if (null == ruFile) {
                 log(lvl, "runRuby: running statements");
@@ -254,26 +256,28 @@ public class JRubyScriptRunner implements IScriptRunner {
                 for (String e : stmts) {
                     buffer.append(e);
                 }
+                interpreter.setScriptFilename(filename);
                 interpreter.runScriptlet(buffer.toString());
             } else {
+                filename = ruFile.getAbsolutePath();
                 if (scriptPaths != null) {
+                    FileReader script = new FileReader(ruFile.getAbsolutePath());
 // TODO implement compile only !!!
                     if (scriptPaths[0].toUpperCase().equals(COMPILE_ONLY)) {
                         log(lvl, "runRuby: running COMPILE_ONLY");
-                        EvalUnit unit = interpreter.parse(ruFile.getAbsolutePath());
+                        EvalUnit unit = interpreter.parse(script, filename);
                         //unit.run();
                     } else {
                         if (scriptPaths.length > 1) {
-                            String scr = FileManager.slashify(scriptPaths[0], true) + scriptPaths[1] + ".sikuli";
-                            log(lvl, "runRuby: running script from IDE: \n" + scr);
+                            filename = FileManager.slashify(scriptPaths[0], true) + 
+                                    scriptPaths[1] + ".sikuli";
+                            log(lvl, "runRuby: running script from IDE: \n" + filename);
                             fromIDE = true;
-                            //interpreter.runScriptlet("sys.argv[0] = \""
-                            //        + scr + "\"");                            
                         } else {
-                            log(lvl, "runRuby: running script: \n" + scriptPaths[0]);
-                            //interpreter.runScriptlet("sys.argv[0] = \"" + scriptPaths[0] + "\"");
-                        }
-                        interpreter.runScriptlet(PathType.ABSOLUTE, ruFile.getAbsolutePath());
+                            filename = scriptPaths[0];
+                            log(lvl, "runRuby: running script: \n" + filename);
+                        }                        
+                        interpreter.runScriptlet(script, filename);
                     }
                 } else {
                     log(-1, "runRuby: invalid arguments");
@@ -291,8 +295,7 @@ public class JRubyScriptRunner implements IScriptRunner {
             } else {
                 //log(-1,_I("msgStopped"));
                 if (null != ruFile) {
-                    exitCode = findErrorSource(e,
-                            ruFile.getAbsolutePath(), scriptPaths);
+                    exitCode = findErrorSource(e, filename, scriptPaths);
                 } else {
                     Debug.error("runRuby: Ruby exception: %s with %s", e.getMessage(), stmt);
                 }
