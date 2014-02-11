@@ -175,7 +175,7 @@ public class JRubyScriptRunner implements IScriptRunner {
 
     @Override
     public String getName() {
-        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+        return "jruby";
     }
 
     @Override
