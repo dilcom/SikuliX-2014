@@ -31,21 +31,6 @@
 		</developer>
 	</developers>
 
-<<<<<<< HEAD
-  <dependencies>
-    <dependency>
-      <groupId>org.sikuli</groupId>
-      <artifactId>SikuliX-Basics</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.jruby</groupId>
-      <artifactId>jruby-complete</artifactId>
-      <version>1.7.10</version>
-    </dependency>
-
-  </dependencies>
-=======
 	<dependencies>
 		<dependency>
 			<groupId>org.sikuli</groupId>
@@ -58,6 +43,5 @@
 			<version>1.7.10</version>
 		</dependency>
 	</dependencies>
->>>>>>> master
 
 </project>

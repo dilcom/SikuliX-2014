@@ -540,8 +540,4 @@ public class JRubyScriptRunner implements IScriptRunner {
             sysargv.addAll(Arrays.asList(argv));
         }
     }
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> master
