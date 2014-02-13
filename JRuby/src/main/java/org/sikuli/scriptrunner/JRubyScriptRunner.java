@@ -62,13 +62,10 @@ public class JRubyScriptRunner implements IScriptRunner {
      */
     private final static String SCRIPT_HEADER
             = "# coding: utf-8\n"
-            + "require 'java'\n"
-            + "require 'rukuli'\n"
             + "require 'sikulix'\n"
-            + "Rukuli::Config.run do |config|\n"
-            + "  config.image_path = SIKULI_IMAGE_PATH + '/'\n"
-            + "  config.logging = true\n"
-            + "end\n";
+            + "include SikuliX4Ruby\n"
+            + "SikuliX4Ruby::image_path = SIKULI_IMAGE_PATH + '/'\n"
+            + "SikuliX4Ruby::logging = true\n";
 
     private static ArrayList<String> codeBefore = null;
     private static ArrayList<String> codeAfter = null;
