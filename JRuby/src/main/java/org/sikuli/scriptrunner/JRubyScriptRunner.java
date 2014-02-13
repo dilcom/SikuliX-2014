@@ -324,7 +324,7 @@ public class JRubyScriptRunner implements IScriptRunner {
             //org.jruby.parser.ParserSyntaxException
             //(SyntaxError) /tmp/sikuli-3213678404470696048.rb:2: syntax error, unexpected tRCURLY
 
-            Pattern pLineS = Pattern.compile("(?<=:)(.*):(.*)");
+            Pattern pLineS = Pattern.compile("(?<=:)(\\d+):(.*)");
             java.util.regex.Matcher mLine = pLineS.matcher(err);
             if (mLine.find()) {
                 log(lvl + 2, "SyntaxError error line: " + mLine.group(1));
