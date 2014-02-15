@@ -100,7 +100,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     String scrType = null;
 		if (scriptType == null || "py".equals(scriptType)) {
 			scrType = "text/python";
-			_indentationLogic = JythonIDESupport.getIndentationLogic();
+			_indentationLogic = org.sikuli.idesupport.JythonIDESupport.getIndentationLogic();
 			_indentationLogic.setTabWidth(pref.getTabWidth());
 			pref.addPreferenceChangeListener(new PreferenceChangeListener() {
 				@Override
