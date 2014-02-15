@@ -263,9 +263,8 @@ public class SikuliIDE extends JFrame {
   }
 
   //<editor-fold defaultstate="collapsed" desc="IDE setup and general">
-  private SikuliIDE(String[] args) {
+  private SikuliIDE() {
     super("Sikuli IDE");
-    initSikuliIDE(args);
   }
 
   private void initSikuliIDE(String[] args) {
@@ -371,7 +370,8 @@ public class SikuliIDE extends JFrame {
 
   public static synchronized SikuliIDE getInstance(String args[]) {
     if (_instance == null) {
-      _instance = new SikuliIDE(args);
+      _instance = new SikuliIDE();
+      _instance.initSikuliIDE(args);
     }
     return _instance;
   }
