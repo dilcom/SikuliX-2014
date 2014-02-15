@@ -876,11 +876,11 @@ public class SikuliIDE extends JFrame {
     }
 
     public void doNew(ActionEvent ae) {
-      doNew(ae, -1);
+      doNew(ae, -1).initBeforeLoad(null);
     }
 
-    public void doNew(ActionEvent ae, int tabIndex) {
-      EditorPane codePane = new EditorPane();
+    public EditorPane doNew(ActionEvent ae, int tabIndex) {
+      EditorPane codePane = new EditorPane(SikuliIDE.getInstance());
       JScrollPane scrPane = new JScrollPane(codePane);
       lineNumberColumn = new EditorLineNumberView(codePane);
       scrPane.setRowHeaderView(lineNumberColumn);
@@ -897,6 +897,7 @@ public class SikuliIDE extends JFrame {
       }
       codePane.getSrcBundle();
       codePane.requestFocus();
+			return codePane;
     }
 
     public void doInsert(ActionEvent ae) {

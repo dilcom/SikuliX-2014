@@ -25,10 +25,10 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.text.*;
 import org.sikuli.basics.Settings;
-import org.sikuli.jython.PythonIndentation;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.FileManager;
 import org.sikuli.basics.IResourceLoader;
+import org.sikuli.basics.IndentationLogic;
 import org.sikuli.script.Location;
 import org.sikuli.basics.SikuliX;
 import org.sikuli.script.Image;
@@ -40,6 +40,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
   private static TransferHandler transferHandler = null;
   private PreferencesUser pref;
   private File _editingFile;
+	private String editingType = null;
   private String _srcBundlePath = null;
   private boolean _srcBundleTemp = false;
   private boolean _dirty = false;
@@ -48,7 +49,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
   private boolean hasErrorHighlight = false;
   public boolean showThumbs;
   // TODO: move to SikuliDocument ????
-  private PythonIndentation _indentationLogic;
+  private IndentationLogic _indentationLogic = null;
   static Pattern patPngStr = Pattern.compile("(\"[^\"]+?\\.(?i)(png|jpg)\")");
   static Pattern patCaptureBtn = Pattern.compile("(\"__CLICK-TO-CAPTURE__\")");
   static Pattern patPatternStr = Pattern.compile(
@@ -59,13 +60,14 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
   private int _caret_last_x = -1;
   private boolean _can_update_caret_last_x = true;
   private SikuliIDEPopUpMenu popMenuImage;
+  private SikuliIDE theIDE;
+  
 
   //<editor-fold defaultstate="collapsed" desc="Initialization">
-  public EditorPane() {
+  public EditorPane(SikuliIDE ide) {
+    theIDE = ide;
     pref = PreferencesUser.getInstance();
     showThumbs = !pref.getPrefMorePlainText();
-    setEditorKitForContentType("text/python", new EditorKit());
-    setContentType("text/python");
     initKeyMap();
     if (transferHandler == null) {
       transferHandler = new MyTransferHandler();
@@ -81,16 +83,6 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     }
     updateDocumentListeners();
 
-    _indentationLogic = new PythonIndentation();
-    _indentationLogic.setTabWidth(pref.getTabWidth());
-    pref.addPreferenceChangeListener(new PreferenceChangeListener() {
-      @Override
-      public void preferenceChange(PreferenceChangeEvent event) {
-        if (event.getKey().equals("TAB_WIDTH")) {
-          _indentationLogic.setTabWidth(Integer.parseInt(event.getNewValue()));
-        }
-      }
-    });
     initEditorPane();
   }
 
@@ -102,7 +94,31 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
       popMenuImage = null;
     }
   }
-  
+
+	public void initBeforeLoad(String scriptType) {
+		//TODO ask for scripttype on new pane
+    String scrType = null;
+		if (scriptType == null || "py".equals(scriptType)) {
+			scrType = "text/python";
+			_indentationLogic = JythonIDESupport.getIndentationLogic();
+			_indentationLogic.setTabWidth(pref.getTabWidth());
+			pref.addPreferenceChangeListener(new PreferenceChangeListener() {
+				@Override
+				public void preferenceChange(PreferenceChangeEvent event) {
+					if (event.getKey().equals("TAB_WIDTH")) {
+						_indentationLogic.setTabWidth(Integer.parseInt(event.getNewValue()));
+					}
+				}
+			});
+		} else if ("rb".equals(scriptType)) {
+			scrType = "text/ruby";
+		}
+    if (scrType != null) {
+      setEditorKitForContentType(scrType, new EditorKit(this));
+      setContentType(scrType);
+    }
+	}
+
   public SikuliIDEPopUpMenu getPopMenuImage() {
     return popMenuImage;
   }
@@ -119,7 +135,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     return _undo;
   }
 
-  public PythonIndentation getIndentationLogic() {
+  public IndentationLogic getIndentationLogic() {
     return _indentationLogic;
   }
 
@@ -170,6 +186,8 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     setSrcBundle(filename + "/");
     File script = new File(filename);
     _editingFile = FileManager.getScriptFile(script, null, null);
+		editingType = _editingFile.getAbsolutePath().substring(_editingFile.getAbsolutePath().lastIndexOf(".") + 1);
+		initBeforeLoad(editingType);
     try {
       this.read(new BufferedReader(new InputStreamReader(
               new FileInputStream(_editingFile), "UTF8")), null);
@@ -184,7 +202,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
       _srcBundlePath = null;
     }
   }
-  
+
   public boolean hasEditingFile() {
     return _editingFile != null;
   }
@@ -229,7 +247,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     }
     return getCurrentShortFilename();
   }
-  
+
   private void makeBundle(String path, boolean asFile) {
     String isBundle = asFile ? "B" : "b";
     IResourceLoader loader = FileManager.getNativeLoader("basic", new String[0]);
@@ -239,7 +257,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
       Debug.error("makeBundle: return: " + cmd[0]);
     }
     if (asFile) {
-      if (! FileManager.writeStringToFile("/Applications/SikuliX-IDE.app", 
+      if (! FileManager.writeStringToFile("/Applications/SikuliX-IDE.app",
               (new File(path, ".LSOverride")).getAbsolutePath())) {
         Debug.error("makeBundle: not possible: .LSOverride");
       }
@@ -247,7 +265,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
       new File(path, ".LSOverride").delete();
     }
   }
-  
+
   private void saveAsBundle(String bundlePath, String current) throws IOException {
 //TODO allow other file types
     bundlePath = FileManager.slashify(bundlePath, true);
@@ -361,7 +379,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
   public boolean isSourceBundleTemp() {
     return _srcBundleTemp;
   }
-  
+
   public String getCurrentSrcDir() {
     if(_srcBundlePath != null) {
       if (_editingFile == null || _srcBundleTemp) {
@@ -381,17 +399,17 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
     }
     return "Untitled";
   }
-  
+
   public File getCurrentFile() {
-    return getCurrentFile(true);    
+    return getCurrentFile(true);
   }
-  
+
   public File getCurrentFile(boolean shouldSave) {
     if (shouldSave && _editingFile == null && isDirty()) {
       try {
         saveAsFile(Settings.isMac());
       } catch (IOException e) {
-        Debug.error(me + "getCurrentFile: Problem while trying to save %s\n%s", 
+        Debug.error(me + "getCurrentFile: Problem while trying to save %s\n%s",
                 _editingFile.getAbsolutePath(), e.getMessage());
       }
     }
@@ -426,7 +444,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
         File newFile = FileManager.smartCopy(filename, bundlePath);
         return newFile;
       } catch (IOException e) {
-        Debug.error(me + "copyFileToBundle: Problem while trying to save %s\n%s", 
+        Debug.error(me + "copyFileToBundle: Problem while trying to save %s\n%s",
                 filename, e.getMessage());
         return f;
       }
@@ -441,7 +459,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
       }
       return null;
   }
-  
+
   public Image getImageInBundle(String filename) {
       return Image.createThumbNail(filename);
   }
@@ -901,7 +919,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
     private static final String me = "EditorPaneTransferHandler: ";
     Map<String, String> _copiedImgs = new HashMap<String, String>();
-    
+
     @Override
     public void exportToClipboard(JComponent comp, Clipboard clip, int action) {
       super.exportToClipboard(comp, clip, action);
