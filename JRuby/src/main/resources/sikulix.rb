@@ -133,7 +133,7 @@ def self.method_missing name, *args, &block
       ret = method.call *args, &block
       # Dynamic methods that throw a native Java-exception,
       # hide a line number in the scriptfile!
-      Object.send(:define_method, name){ |*args| method.call *args }
+      #Object.send(:define_method, name){ |*args| method.call *args }
       return ret
     else
       raise "Non SikuliX method: #{name} (#{args})"
