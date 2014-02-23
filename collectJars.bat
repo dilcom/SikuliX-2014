@@ -1,54 +1,56 @@
 @echo off
 setlocal
-set base=%~dp0
-echo SourceBase %base%
-if "%HOME%" == "" (set "HOME=%HOMEDRIVE%%HOMEPATH%")
-
-set setup=Basics
-set jython=Jython
-set api=API
-set ide=IDE
-
 set mversion=1.1
-set sversion=%mversion%.0
-set version=%sversion%-Beta1
+set version=%mversion%.0
 
-set dist=%base%\..\Build
-if not exist %dist% (mkdir %dist%)
+set base=%~dp0
+
+echo ----------------- SikuliX collecting jars in %base% 
+
+set source=%base%Setup\target
+
+set dist=%base%..\SikuliX-Setup
+if not exist "%dist%" goto NODIST
+rd /S /Q  %dist%
+:NODIST
+md %dist% 
+md %dist%\Downloads 
+
+set log=%dist%\collectjars-log.txt
+
+echo --- version --- %version%
+echo --- major version --- %mversion%
+echo --- version --- %version% >%log%
+echo --- major version --- %mversion% >>%log%
+
+echo ----------------- SourceBase %base% >>%log%
+echo ----------------- running Maven clean install --- takes some time ...
+call mvn clean install >>%log%
 
 REM ----------- Setup
-echo --- make Setup
+echo --- collecting jars
+echo --- collecting jars >>%log%
+cd %source% >>%log%
+java -jar sikulixsetup-%version%-plain.jar noSetup >>%log%
 cd %base%
-call mvn -f Basics\setup* 
-copy Basics\target-setup\sikulixsetup-%version%-plain.jar %dist%\sikulixsetup-%mversion%.jar
+dir %source% >>%log%
 
-if "%1%" == "setup" (goto FINALLY)  
-  REM ----------- API
-  echo --- make API
-  cd %base%
-  call mvn -f API\api* 
-  copy API\target-api\%version%-api-plain.jar %dist%\%version%-2.jar
-  
-  REM ----------- SikuliX
-  echo --- make SikuliX
-  cd %base%
-  call mvn -f IDE\ide* 
-  copy IDE\target-ide\%version%-ide-plain.jar %dist%\%version%-1.jar
-  
-  REM ----------- MacApp
-  echo --- make MacApp
-  cd %base%
-  copy MacApp\target\*.jar %dist%
-  
-  REM ----------- Tesseract
-  echo --- make Tesseract
-  cd %base%
-  copy Tesseract\target\*.jar %dist%  
-  
-  REM ----------- Remote
-  echo --- make Remote
-  cd %base%
-  copy Remote\target\SikuliX-Remote-%sversion%.jar %dist%\%version%-3.jar  
+REM ----------- Setup
+echo --- copy Setup
+echo --- copy Setup >>%log%
+copy %source%\sikulixsetup*.jar %dist%\sikulixsetup-%mversion%.jar >>%log%
+dir %dist% >>%log%
+
+REM ----------- Jars
+echo --- copy Jars 
+echo --- copy Jars >>%log%
+copy %source%\Downloads\* %dist%\Downloads >>%log%
+dir %dist%\Downloads >>%log%
+
+echo ----------- final content of %dist%
+dir %dist%
+dir %dist%\Downloads
+echo ----------- SikuliX collectjars end -----------
 
 :FINALLY
 endlocal
