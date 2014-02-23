@@ -41,6 +41,7 @@
 		<exclude.nativelayer.null>NativeLayerForNothing</exclude.nativelayer.null>
 		<sikuli.jartype>plain.xml</sikuli.jartype>
 		<sikuli.jarname>${project.version}</sikuli.jarname>
+    <sikuli.usedversion>1.1.0-Beta1</sikuli.usedversion>
 	</properties>
 
 	<repositories>
@@ -223,10 +224,15 @@
 		<module>Libs</module>
 		<module>Natives</module>
 		<module>Basics</module>
+		<module>Setup</module>
 		<module>Jython</module>
+		<module>JythonFat</module>
 		<module>JRuby</module>
+		<module>JRubyFat</module>
 		<module>API</module>
+		<module>APIFat</module>
 		<module>IDE</module>
+		<module>IDEFat</module>
 		<module>MacApp</module>
 		<module>Tesseract</module>
 		<module>Remote</module>

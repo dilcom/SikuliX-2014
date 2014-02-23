@@ -1,12 +1,12 @@
 <?xml version="1.0"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
+  
   <!--
   * Copyright 2010-2013, Sikuli.org
   * Released under the MIT License.
   *
-  * RaiMan 2013
+  * kelthuzad, RaiMan 2013
   -->
 
 	<parent>
@@ -19,23 +19,14 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.sikuli</groupId>
-  <artifactId>SikuliX-IDE</artifactId>
+  <artifactId>SikuliX-IDEFat</artifactId>
+  <name>SikuliX-IDEFat</name>
   <version>1.1.0</version>
 
   <dependencies>
     <dependency>
       <groupId>org.sikuli</groupId>
-      <artifactId>SikuliX-API</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sikuli</groupId>
-      <artifactId>SikuliX-Jython</artifactId>
-      <version>${project.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>org.sikuli</groupId>
-      <artifactId>SikuliX-JRuby</artifactId>
+      <artifactId>SikuliX-IDE</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>
@@ -64,45 +55,34 @@
       <version>1.1.0</version>
     </dependency>
   </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.1</version>
-        <configuration>
-          <excludes>
-            <exclude>**/${exclude.nativelayer}</exclude>
-          </excludes>
-        </configuration>
-      </plugin>
-<!--      <plugin>
-        <artifactId>maven-javadoc-plugin</artifactId>
-        <version>2.9.1</version>
-        <configuration>
-             has problems with excluded files; excluding doesn't work for me
-            <skip>true</skip>
-        </configuration>
-      </plugin>-->
-      <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>2.4</version>
-        <configuration>
+  
+	<build>
+    <defaultGoal>clean package</defaultGoal>
+		<plugins>
+			<plugin>
+				<artifactId>maven-assembly-plugin</artifactId>
+				<version>2.4</version>
+				<configuration>
           <archive>
             <manifest>
               <mainClass>org.sikuli.ide.SikuliIDE</mainClass>
             </manifest>
-          </archive>
-        </configuration>
-      </plugin>
-      <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>exec-maven-plugin</artifactId>
-          <version>1.2.1</version>
-          <configuration>
-              <mainClass>org.sikuli.ide.SikuliIDE</mainClass>
-          </configuration>
-      </plugin>
-    </plugins>
-  </build>
+          </archive> 
+					<descriptors>
+						<descriptor>../plain.xml</descriptor>
+					</descriptors>
+					<finalName>${sikuli.usedversion}-1</finalName>
+				</configuration>
+				<executions>
+					<execution>
+						<id>make-assembly</id>
+						<phase>package</phase>
+						<goals>
+							<goal>single</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
 </project>

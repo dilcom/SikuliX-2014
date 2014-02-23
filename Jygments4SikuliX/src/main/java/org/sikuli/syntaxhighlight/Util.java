@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.CodeSource;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -115,6 +116,7 @@ public class Util {
   private static final Pattern DOUBLE_QUOTED_STRING = Pattern.compile("\"(?>\\\\.|.)*?\"");
   private static final Pattern SINGLE_QUOTED_STRING = Pattern.compile("'(?>\\\\.|.)*?'");
   public static String extJSON = ".jso";
+  private static CodeSource csJygments = Jygments.class.getProtectionDomain().getCodeSource();
 
   public static InputStream getJsonFile(String pack, String sub, String name, String fullname) {
     URI jarFileURI = null;
@@ -122,37 +124,35 @@ public class Util {
     InputStream stream = null;
     String jsonname = name.replace('.', '/') + extJSON;
     fullname = fullname.replace('.', '/') + extJSON;
-    String filenamePack, filenameRoot;
+    File fileInPack = null;
+		File fileInRoot = null;
     try {
-      jarFileURI = Jygments.class.getProtectionDomain().getCodeSource().getLocation().toURI();
+      jarFileURI = csJygments.getLocation().toURI();
     } catch (URISyntaxException ex) {
-      //TODO error message
+      System.out.println("Util: getJsonFile: URISyntaxException: " + ex.toString());
     }
-    if (jarFileURI != null) {
+    if (jarFileURI != null ) {
       String jarFilePath = jarFileURI.getPath();
-      filenamePack = filenameRoot = jsonname;
-      if (jarFileURI.getScheme().equals("file")) {
+      if (jarFileURI.getScheme().equals("file") && !jarFilePath.contains(".jar")) {
         if (!pack.isEmpty()) {
           pack = pack.replace(".", "/");
           if (!sub.isEmpty()) {
             sub = sub.replace(".", "/");
             pack = pack + "/" + sub;
-            filenameRoot = sub + "/" + jsonname;
+            fileInRoot = new File(jarFilePath, sub + "/" + jsonname);
           }
-          filenamePack = pack + "/" + jsonname;
+          fileInPack = new File(jarFilePath, pack + "/" + jsonname);
         }
-        jarFile = new File(jarFilePath, filenamePack);
-        if (!jarFile.exists()) {
-          jarFile = new File(jarFilePath, filenameRoot);
-          if (!jarFile.exists()) {
-            jarFile = null;
-          }
+        if (fileInPack != null && fileInPack.exists()) {
+					jarFile = fileInPack;
+				} else if (fileInRoot != null && fileInRoot.exists()) {
+            jarFile = fileInRoot;
         }
         if (jarFile != null) {
           try {
             stream = new FileInputStream(jarFile);
           } catch (FileNotFoundException ex) {
-            //TODO error message
+            System.out.println("Jygments: Util: not found:\n" + jarFile) ;
           }
         }
       } else {

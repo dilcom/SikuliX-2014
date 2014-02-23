@@ -11,6 +11,8 @@ import java.awt.*;
 import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -33,11 +35,15 @@ import org.sikuli.script.Location;
 import org.sikuli.basics.SikuliX;
 import org.sikuli.script.Image;
 import org.sikuli.script.ImagePath;
+import org.sikuli.syntaxhighlight.ResolutionException;
+import org.sikuli.syntaxhighlight.grammar.Lexer;
+import org.sikuli.syntaxhighlight.grammar.Token;
 
 public class EditorPane extends JTextPane implements KeyListener, CaretListener {
 
 	private static final String me = "EditorPane: ";
 	private static TransferHandler transferHandler = null;
+	private static Map<String, Lexer> lexers = new HashMap<String, Lexer>();
 	private PreferencesUser pref;
 	private File _editingFile;
 	private String editingType = null;
@@ -60,72 +66,97 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	private int _caret_last_x = -1;
 	private boolean _can_update_caret_last_x = true;
 	private SikuliIDEPopUpMenu popMenuImage;
-	private SikuliIDE theIDE;
-	private static Map<String, SikuliEditorKit> editorKits = new HashMap<String, SikuliEditorKit>();
+	private String sikuliContentType;
+  private SikuliEditorKit editorKit;
+  private EditorViewFactory editorViewFactory;
 
 	//<editor-fold defaultstate="collapsed" desc="Initialization">
 	public EditorPane(SikuliIDE ide) {
-		theIDE = ide;
 		pref = PreferencesUser.getInstance();
 		showThumbs = !pref.getPrefMorePlainText();
+	}
+
+	public void initBeforeLoad(String scriptType) {
+		initBeforeLoad(scriptType, false);
+	}
+
+	public void reInit(String scriptType) {
+		initBeforeLoad(scriptType, true);
+	}
+
+	public void initBeforeLoad(String scriptType, boolean reInit) {
+		String scrType = null;
+		boolean paneIsEmpty = false;
+
+		if (scriptType == null) {
+			scriptType = Settings.EDEFAULT;
+			paneIsEmpty = true;
+		}
+
+		if (Settings.EPYTHON.equals(scriptType)) {
+			scrType = Settings.CPYTHON;
+			_indentationLogic = SikuliIDE.getIDESupport(scriptType).getIndentationLogic();
+			_indentationLogic.setTabWidth(pref.getTabWidth());
+		} else if (Settings.ERUBY.equals(scriptType)) {
+			scrType = Settings.CRUBY;
+			_indentationLogic = null;
+		}
+
+		if (scrType != null) {
+			sikuliContentType = scrType;
+			editorKit = new SikuliEditorKit();
+      editorViewFactory = (EditorViewFactory) editorKit.getViewFactory();
+			setEditorKit(editorKit);
+			setContentType(scrType);
+
+			if (_indentationLogic != null) {
+				pref.addPreferenceChangeListener(new PreferenceChangeListener() {
+					@Override
+					public void preferenceChange(PreferenceChangeEvent event) {
+						if (event.getKey().equals("TAB_WIDTH")) {
+							_indentationLogic.setTabWidth(Integer.parseInt(event.getNewValue()));
+						}
+					}
+				});
+			}
+		}
+
 		initKeyMap();
+
 		if (transferHandler == null) {
 			transferHandler = new MyTransferHandler();
 		}
 		setTransferHandler(transferHandler);
 		_highlighter = new EditorCurrentLineHighlighter(this);
+
 		addCaretListener(_highlighter);
+
 		setFont(new Font(pref.getFontName(), Font.PLAIN, pref.getFontSize()));
 		setMargin(new Insets(3, 3, 3, 3));
 		setBackground(Color.WHITE);
 		if (!Settings.isMac()) {
 			setSelectionColor(new Color(170, 200, 255));
 		}
+
 		updateDocumentListeners();
 
-		initEditorPane();
-	}
-
-	private void initEditorPane() {
 		addKeyListener(this);
 		addCaretListener(this);
 		popMenuImage = new SikuliIDEPopUpMenu("POP_IMAGE", this);
 		if (!popMenuImage.isValidMenu()) {
 			popMenuImage = null;
 		}
+
+		if (paneIsEmpty || reInit) {
+//			this.setText(String.format(Settings.TypeCommentDefault, getSikuliContentType()));
+			this.setText("");
+		}
+		SikuliIDE.getStatusbar().setCurrentContentType(getSikuliContentType());
+		Debug.log(3, "InitTab: (%s)", getSikuliContentType());
 	}
 
-	public void initBeforeLoad(String scriptType) {
-		//TODO ask for scripttype on new pane
-		String scrType = null;
-		if (scriptType == null) {
-			scriptType = "py";
-		}
-		if ("py".equals(scriptType)) {
-			scrType = "text/python";
-			_indentationLogic = SikuliIDE.getIDESupport(scriptType).getIndentationLogic();
-			_indentationLogic.setTabWidth(pref.getTabWidth());
-		} else if ("rb".equals(scriptType)) {
-			scrType = "text/ruby";
-		}
-		if (scrType != null) {
-			if (!editorKits.containsKey(scrType)) {
-				SikuliEditorKit ek = new SikuliEditorKit(this);
-				editorKits.put(scrType, ek);
-				setEditorKitForContentType(scrType, ek);
-			}
-			setEditorKit(editorKits.get(scrType));
-			setContentType(scrType);
-		}
-		pref.addPreferenceChangeListener(new PreferenceChangeListener() {
-			@Override
-			public void preferenceChange(PreferenceChangeEvent event) {
-				if (event.getKey().equals("TAB_WIDTH")) {
-					_indentationLogic.setTabWidth(Integer.parseInt(event.getNewValue()));
-				}
-			}
-		});
-		Debug.log(3, "InitTab: %s :--: %s", getContentType(), getEditorKit());
+	public String getSikuliContentType() {
+		return sikuliContentType;
 	}
 
 	public SikuliIDEPopUpMenu getPopMenuImage() {
@@ -287,8 +318,8 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 		ImagePath.remove(_srcBundlePath);
 		setSrcBundle(bundlePath);
-		_editingFile = createSourceFile(bundlePath, ".py");
-		Debug.log(2, "save to bundle: " + getSrcBundle());
+		_editingFile = createSourceFile(bundlePath, "." + Settings.TypeEndings.get(sikuliContentType));
+		Debug.log(3, "IDE: saveAsBundle: " + getSrcBundle());
 		writeSrcFile();
 		reparse();
 	}
@@ -304,16 +335,65 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	private void writeSrcFile() throws IOException {
+		Debug.log(3, "IDE: writeSrcFile: " + _editingFile.getName());
 		writeFile(_editingFile.getAbsolutePath());
-		if (PreferencesUser.getInstance().getAtSaveMakeHTML()) {
+    if (PreferencesUser.getInstance().getAtSaveMakeHTML()) {
 			convertSrcToHtml(getSrcBundle());
 		} else {
-			(new File(_editingFile.getAbsolutePath().replaceFirst("py", "html"))).delete();
+			String snameDir = new File(_editingFile.getAbsolutePath()).getParentFile().getName();
+			String sname = snameDir.replace(".sikuli", "") + ".html";
+			(new File(snameDir, sname)).delete();
 		}
 		if (PreferencesUser.getInstance().getAtSaveCleanBundle()) {
 			cleanBundle(getSrcBundle());
 		}
 		setDirty(false);
+	}
+
+	private void cleanBundle(String bundle) {
+		String scriptText = getText();
+		Lexer lexer = getLexer();
+		Iterable<Token> tokens = lexer.getTokens(scriptText);
+		List<String> usedImages = new ArrayList<String>();
+		boolean inString = false;
+		String current;
+		for (Token t : tokens) {
+			current = t.getValue();
+			if (!inString) {
+				if ("'\"".contains(current)) {
+					inString = true;
+				}
+				continue;
+			}
+			if ("'\"".contains(current)) {
+				inString = false;
+				continue;
+			}
+			if (current.endsWith(".png") || current.endsWith(".jpg")) {
+				Debug.log(3,"IDE: save: used image: %s", current);
+				usedImages.add(current);
+			}
+		}
+		if (usedImages.size() == 0) {
+			return;
+		}
+		FileManager.deleteNotUsedImages(bundle, usedImages);
+	}
+
+	private Lexer getLexer() {
+//TODO this only works for cleanbundle to find the image strings
+    String scriptType = "python";
+		if (null != lexers.get(scriptType)) {
+			return lexers.get(scriptType);
+		}
+		try {
+			Lexer lexer = Lexer.getByName(scriptType);
+			lexers.put(scriptType, lexer);
+			return lexer;
+		} catch (ResolutionException ex) {
+			return null;
+		}
+
 	}
 
 	public String exportAsZip() throws IOException, FileNotFoundException {
@@ -433,16 +513,10 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	private void convertSrcToHtml(String bundle) {
-		SikuliX.getScriptRunner("jython", null, null).doSomethingSpecial("convertSrcToHtml",
-						new String[]{bundle});
-	}
-
-	private void cleanBundle(String bundle) {
-		if (!PreferencesUser.getInstance().getAtSaveCleanBundle()) {
-			return;
+		if (null != SikuliX.getScriptRunner("jython", null, null)) {
+			SikuliX.getScriptRunner("jython", null, null).doSomethingSpecial("convertSrcToHtml",
+							new String[]{bundle});
 		}
-		SikuliX.getScriptRunner("jython", null, null).doSomethingSpecial("cleanBundle",
-						new String[]{bundle});
 	}
 
 	public File copyFileToBundle(String filename) {
@@ -650,15 +724,59 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 	//<editor-fold defaultstate="collapsed" desc="replace text patterns with image buttons">
 	public boolean reparse() {
-		File temp = FileManager.createTempFile("py");
+		File temp = null;
 		Element e = this.getDocument().getDefaultRootElement();
 		if (e.getEndOffset() - e.getStartOffset() == 1) {
 			return true;
 		}
+		if ((temp = reparseBefore()) != null) {
+			if (reparseAfter(temp)) {
+			updateDocumentListeners();
+			return true;
+			}
+		}
+		return false;
+	}
+
+	public File reparseBefore() {
+		Element e = this.getDocument().getDefaultRootElement();
+		if (e.getEndOffset() - e.getStartOffset() == 1) {
+			return null;
+		}
+		File temp = FileManager.createTempFile("reparse");
 		try {
 			writeFile(temp.getAbsolutePath());
+			return temp;
+		} catch (IOException ex) {
+		}
+		return null;
+	}
+
+	public boolean reparseCheckContent() {
+		Element e = this.getDocument().getDefaultRootElement();
+		String txt;
+		if (e.getElementCount() > 2) {
+			return false;
+		} else if (e.getElement(1).getEndOffset() - e.getElement(1).getStartOffset() > 1) {
+			return false;
+		} else {
+			int is = e.getElement(0).getStartOffset();
+			int ie = e.getElement(0).getEndOffset();
+			try {
+				txt = e.getElement(0).getDocument().getText(is, ie - 1);
+				if (txt.endsWith(Settings.TypeCommentToken)) {
+					return true;
+				}
+			} catch (BadLocationException ex) {
+				return false;
+			}
+		}
+		return false;
+	}
+
+	public boolean reparseAfter(File temp) {
+		try {
 			this.read(new BufferedReader(new InputStreamReader(new FileInputStream(temp), "UTF8")), null);
-			updateDocumentListeners();
 			return true;
 		} catch (IOException ex) {
 		}

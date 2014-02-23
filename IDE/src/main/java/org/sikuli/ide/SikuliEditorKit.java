@@ -22,10 +22,6 @@ public class SikuliEditorKit extends StyledEditorKit {
 	private ViewFactory _viewFactory;
 	private EditorPane pane;
 
-	public SikuliEditorKit(EditorPane p) {
-		_viewFactory = new EditorViewFactory();
-		pane = p;
-	}
 	public static final String deIndentAction = "SKL.DeindentAction";
 	private static final TextAction[] defaultActions = {
 		new InsertTabAction(),
@@ -41,6 +37,12 @@ public class SikuliEditorKit extends StyledEditorKit {
 		new NextVisualPositionAction(selectionDownAction, true, SwingConstants.SOUTH),};
 
 
+	public SikuliEditorKit() {
+    pane = SikuliIDE.getInstance().getCurrentCodePane();
+		_viewFactory = new EditorViewFactory();
+    ((EditorViewFactory) _viewFactory).setContentType(pane.getSikuliContentType());
+	}
+  
 	public static class InsertTabAction extends TextAction {
 
 		private IndentationLogic indentationLogic;
@@ -61,10 +63,6 @@ public class SikuliEditorKit extends StyledEditorKit {
 		}
 
 		public void actionPerformed(JTextComponent text) {
-			indentationLogic = ((EditorPane) text).getIndentationLogic();
-			if (indentationLogic == null) {
-				return;
-			}
 			boolean indentError = false;
 			Document doc = text.getDocument();
 			Element map = doc.getDefaultRootElement();
@@ -516,8 +514,7 @@ public class SikuliEditorKit extends StyledEditorKit {
 
 	@Override
 	public String getContentType() {
-		//TODO other content type: ruby, DSL, ...
-		return "text/python";
+		return pane.getSikuliContentType();
 	}
 
 	@Override

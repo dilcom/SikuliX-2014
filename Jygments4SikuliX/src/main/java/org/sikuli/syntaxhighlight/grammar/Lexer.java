@@ -38,6 +38,7 @@ import org.sikuli.syntaxhighlight.grammar.def.ChangeStateTokenRuleDef;
 import org.sikuli.syntaxhighlight.grammar.def.IncludeDef;
 import org.sikuli.syntaxhighlight.grammar.def.TokenRuleDef;
 
+
 /**
  * @author Tal Liron
  */
@@ -46,6 +47,7 @@ public class Lexer extends Grammar
 	//
 	// Static operations
 	//
+  private static ClassLoader cl = Jygments.class.getClassLoader();
 
 	public static Lexer getByName( String name ) throws ResolutionException
 	{
@@ -60,12 +62,11 @@ public class Lexer extends Grammar
 		else
 		{
 			// Try contrib package
-			String pack = Jygments.class.getPackage().getName();
-			lexer = getByFullName( pack, "contrib", name );
+			lexer = getByFullName( "LexerContrib", "", name );
 			if( lexer == null )
 			{
 				// Try this package
-				pack = Lexer.class.getPackage().getName();
+				String pack = Lexer.class.getPackage().getName();
 				lexer = getByFullName( pack, "", name );
 			}
 			return lexer;
@@ -75,7 +76,7 @@ public class Lexer extends Grammar
 	public static Lexer getByFullName( String name ) throws ResolutionException {
     return getByFullName("", "", name);
   }
-          
+
 	@SuppressWarnings("unchecked")
 	public static Lexer getByFullName( String pack, String sub, String name ) throws ResolutionException
 	{
@@ -94,16 +95,13 @@ public class Lexer extends Grammar
 
 		try
 		{
-			return (Lexer) Jygments.class.getClassLoader().loadClass( fullname ).newInstance();
+      Class<Lexer> cLexer = (Class<Lexer>) cl.loadClass( fullname );
+      Lexer iLexer = (Lexer) (cLexer.newInstance());
+      return iLexer;
 		}
-		catch( InstantiationException x )
+		catch( Exception x )
 		{
-		}
-		catch( IllegalAccessException x )
-		{
-		}
-		catch( ClassNotFoundException x )
-		{
+      //System.out.println("[error] Jygments: Lexer: problem loading class " + fullname);
 		}
 
 		InputStream stream = Util.getJsonFile(pack, sub, name, fullname);
@@ -127,8 +125,9 @@ public class Lexer extends Grammar
 				{
 					// Cache it
 					Lexer existing = lexers.putIfAbsent( fullname, lexer );
-					if( existing != null )
+					if( existing != null ) {
 						lexer = existing;
+					}
 				}
 
 				return lexer;

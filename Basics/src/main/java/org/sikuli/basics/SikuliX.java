@@ -51,12 +51,12 @@ public class SikuliX {
             me + ": " + message, args);
   }
   //</editor-fold>
-  
+
   private static IScriptRunner runner;
   private static final String ScriptSikuliXCL = "org.sikuli.script.SikuliX";
   private static final String ScriptKeyCL = "org.sikuli.script.Key";
   private static Class ScriptCl, KeyCl;
-  private static Method endWhat, toJavaKeyCode, setBundlePath;
+  private static Method endWhat, keyBoardSetup, setBundlePath;
   private static boolean runningSetup = false;
   private static boolean runningFromJar;
   private static String jarPath;
@@ -148,15 +148,25 @@ public class SikuliX {
   public static int[] callKeyToJavaKeyCodeMethod(String key) {
     try {
       KeyCl = Class.forName(ScriptKeyCL);
-      toJavaKeyCode = KeyCl.getMethod("toJavaKeyCode", new Class[]{String.class});
-      return (int[]) toJavaKeyCode.invoke(KeyCl, new Object[]{key});
+      keyBoardSetup = KeyCl.getMethod("toJavaKeyCode", new Class[]{String.class});
+      return (int[]) keyBoardSetup.invoke(KeyCl, new Object[]{key});
     } catch (Exception ex) {
       Debug.error("Invoke KeyToJavaKeyCodeMethod: Fatal Error 999: could not be run!");
       return null;
     }
   }
 
-  public static void callImagePathSetBundlePath(String path) {
+  public static void callKeyBoardSetup() {
+    try {
+      KeyCl = Class.forName(ScriptKeyCL);
+      keyBoardSetup = KeyCl.getMethod("keyBoardSetup", new Class[]{});
+      keyBoardSetup.invoke(KeyCl, new Object[]{});
+    } catch (Exception ex) {
+      Debug.error("Invoke Key.keyBoardSetup: Fatal Error 999: could not be run!");
+    }
+  }
+
+	public static void callImagePathSetBundlePath(String path) {
     try {
       ScriptCl = Class.forName("org.sikuli.script.ImagePath");
       setBundlePath = ScriptCl.getMethod("setBundlePath", new Class[]{String.class});
@@ -343,6 +353,38 @@ public class SikuliX {
     return true;
   }
 
+  public static boolean popAsk(String msg) {
+		return popAsk(msg, null);
+	}
+
+  public static boolean popAsk(String msg, String title) {
+		if (title == null) title = "... something to decide!";
+    int ret = JOptionPane.showConfirmDialog(null, msg, title, JOptionPane.YES_NO_OPTION);
+    if (ret == JOptionPane.CLOSED_OPTION || ret == JOptionPane.NO_OPTION) {
+      return false;
+    }
+    return true;
+  }
+
+  public static String popSelect(String msg, String[] options, String preset) {
+		return popSelect(msg, null, options, preset);
+	}
+
+  public static String popSelect(String msg, String[] options) {
+		return popSelect(msg, null, options, options[0]);
+	}
+
+	public static String popSelect(String msg, String title, String[] options) {
+		return popSelect(msg, title, options, options[0]);
+	}
+
+	public static String popSelect(String msg, String title, String[] options, String preset) {
+		if (title == null) {
+			title = "... something to select!";
+		}
+		return (String) JOptionPane.showInputDialog(null, msg, title, JOptionPane.PLAIN_MESSAGE, null, options, preset);
+	}
+
   /**
    * request user's input as one line of text <br>
    * with hidden = true: <br>
@@ -368,9 +410,9 @@ public class SikuliX {
       tm.setWrapStyleWord(true);
       tm.setEditable(false);
       tm.setBackground(new JLabel().getBackground());
-      
+
       JPasswordField pw = new JPasswordField(preset);
-      
+
       JPanel pnl = new JPanel();
       pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
       pnl.add(pw);
@@ -423,7 +465,7 @@ public class SikuliX {
   */
   public static String inputText(String msg, String title, int lines, int width) {
     width = Math.max(20, width);
-    lines = Math.max(9, lines);    
+    lines = Math.max(9, lines);
     if ("".equals(title)) {
       title = "Sikuli input request";
     }
@@ -432,31 +474,31 @@ public class SikuliX {
     int h = (int) (lines*ta.getFontMetrics(ta.getFont()).getHeight());
     ta.setPreferredSize(new Dimension(w,h));
     ta.setMaximumSize(new Dimension(w,2*h));
-    
+
     JScrollPane sp = new JScrollPane(ta);
     sp.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_NEVER);
-    
+
     JTextArea tm = new JTextArea(msg);
     tm.setColumns(width);
     tm.setLineWrap(true);
     tm.setWrapStyleWord(true);
     tm.setEditable(false);
     tm.setBackground(new JLabel().getBackground());
-    
+
     JPanel pnl = new JPanel();
     pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
     pnl.add(sp);
     pnl.add(Box.createVerticalStrut(10));
     pnl.add(tm);
     pnl.add(Box.createVerticalStrut(10));
-    
+
     if (0 == JOptionPane.showConfirmDialog(null, pnl, title, JOptionPane.OK_CANCEL_OPTION)) {
       return ta.getText();
     } else {
       return "";
     }
   }
-  
+
   public static void popup(String message) {
     popup(message, "Sikuli");
   }
@@ -470,23 +512,5 @@ public class SikuliX {
     String[] args = new String[]{cmdline};
     loader.doSomethingSpecial("runcmd", args);
     return args[0];
-  }
-  
-  
-  /**
-   * INTERNAL USE: convert ##--##Fri Jan  3 10:53:05 CET 2014##--## <br>
-   * to: 2014-JAN-03-10:53:05 (timestamp of build)
-   * @param tsb
-   * @return
-   */
-  public static String makeTimestamp(String tsb) {
-    String timestamp = tsb.substring(6, tsb.length() - 6);
-    timestamp = timestamp.substring(timestamp.indexOf(" ") + 1);
-    timestamp = timestamp.substring(timestamp.length()-4) + "-" +
-                     timestamp.substring(0, timestamp.length()-5);
-    timestamp = timestamp.substring(0, timestamp.lastIndexOf(" "));
-    timestamp = timestamp.replaceAll(" ", "-").toUpperCase();
-    timestamp = timestamp.replaceAll("--", "-0").toUpperCase();
-    return timestamp;
   }
 }

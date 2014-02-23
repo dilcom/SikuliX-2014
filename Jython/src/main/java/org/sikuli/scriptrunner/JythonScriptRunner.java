@@ -86,11 +86,6 @@ public class JythonScriptRunner implements IScriptRunner {
           = JythonScriptRunner.class.getResourceAsStream("/scripts/sikuli2html.py");
   static String pyConverter
           = FileManager.convertStreamToString(SikuliToHtmlConverter);
-  //TODO SikuliBundleCleaner implement in Java
-  final static InputStream SikuliBundleCleaner
-          = JythonScriptRunner.class.getResourceAsStream("/scripts/clean-dot-sikuli.py");
-  static String pyBundleCleaner
-          = FileManager.convertStreamToString(SikuliBundleCleaner);
   private static String sikuliLibPath;
 
   /**
@@ -128,7 +123,7 @@ public class JythonScriptRunner implements IScriptRunner {
   @Override
   public int runScript(File pyFile, File imagePath, String[] argv, String[] forIDE) {
     if (null == pyFile) {
-      //run the Python statements from argv (special for setup fgunctional test)
+      //run the Python statements from argv (special for setup functional test)
       fillSysArgv(null, null);
       createPythonInterpreter();
       executeScriptHeader(new String[0]);
@@ -429,7 +424,7 @@ public class JythonScriptRunner implements IScriptRunner {
    */
   @Override
   public String getName() {
-    return "jython";
+    return Settings.RPYTHON;
   }
 
   /**
@@ -509,9 +504,6 @@ public class JythonScriptRunner implements IScriptRunner {
     } else if ("convertSrcToHtml".equals(action)) {
       convertSrcToHtml((String) args[0]);
       return true;
-    } else if ("cleanBundle".equals(action)) {
-      cleanBundle((String) args[0]);
-      return true;
     } else if ("createRegionForWith".equals(action)) {
       args[0] = createRegionForWith(args[0]);
       return true;
@@ -524,7 +516,8 @@ public class JythonScriptRunner implements IScriptRunner {
   /**
    * {@inheritDoc}
    */
-  @Override
+
+	@Override
   public void execBefore(String[] stmts) {
     if (stmts == null) {
       codeBefore = null;
@@ -634,13 +627,6 @@ public class JythonScriptRunner implements IScriptRunner {
     py.set("local_convert", true);
     py.set("sikuli_src", bundle);
     py.exec(pyConverter);
-  }
-
-  private void cleanBundle(String bundle) {
-    PythonInterpreter py = new PythonInterpreter();
-    log(lvl, "Clear source bundle " + bundle);
-    py.set("bundle_path", bundle);
-    py.exec(pyBundleCleaner);
   }
 
   private Object createRegionForWith(Object reg) {
