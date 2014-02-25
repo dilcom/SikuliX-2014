@@ -135,7 +135,34 @@ public class JRubyScriptRunner implements IScriptRunner {
 
 	@Override
 	public int runInteractive(String[] scriptArgs) {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            fillSysArgv(null, scriptArgs);
+
+            String[] args = null;
+            String[] iargs = {/*"-i", "-c",*/
+                "require 'irb'\n"
+                + "SikuliScript.runningInteractive();\n"
+                + "print \"Hello, this is your interactive Sikuli (rules for interactive Ruby apply)\\n"
+                + "use the UP/DOWN arrow keys to walk through the input history\\n"
+                + "help()<enter> will output some basic Ruby information\\n"
+                + "shelp()<enter> will output some basic Sikuli information\\n"
+                + "... use ctrl-d to end the session\"\n"
+                + "IRB.start(__FILE__)\n"
+            };
+            if (scriptArgs != null && scriptArgs.length > 0) {
+                args = new String[scriptArgs.length + iargs.length];
+                System.arraycopy(iargs, 0, args, 0, iargs.length);
+                System.arraycopy(scriptArgs, 0, args, iargs.length, scriptArgs.length);
+            } else {
+                args = iargs;
+            }
+            StringBuilder buffer = new StringBuilder();
+            for (String e : args) {
+                buffer.append(e);
+            }
+            createScriptingContainer();
+            executeScriptHeader(new String[0]);
+            interpreter.runScriptlet(buffer.toString());
+            return 0;
 	}
 
 	@Override
@@ -178,7 +205,8 @@ public class JRubyScriptRunner implements IScriptRunner {
 	@Override
 	public boolean doSomethingSpecial(String action, Object[] args) {
 		if ("redirect".equals(action)) {
-			return doRedirect((PipedInputStream[]) args);
+			doRedirect((PipedInputStream[]) args);
+			return true;
 		} else {
 			return false;
 		}
@@ -318,11 +346,11 @@ public class JRubyScriptRunner implements IScriptRunner {
 					errorLine = line.getLineNumber();
 					errorClass = PY_RUNTIME;
 					this.errorText = thr.getMessage();
-
-                                        Pattern sikType =
+                                        
+                                        Pattern sikType = 
                                                 Pattern.compile(
                                                         "(?<=org.sikuli.script.)(.*)(?=:)");
-                                        Matcher mSikType =
+                                        Matcher mSikType = 
                                                 sikType.matcher(this.errorText);
 
 					if (mSikType.find()) {
@@ -478,7 +506,7 @@ public class JRubyScriptRunner implements IScriptRunner {
 			System.setOut(ps);
 			interpreter.setOutput(ps);
 		} catch (Exception e) {
-			log(-1, "%s: redirect STDOUT: %s", getName(), e.getMessage());
+			log(-1, "doRedirect: Couldn't redirect STDOUT\n%s", e.getMessage());
 			return false;
 		}
 		try {
@@ -487,7 +515,7 @@ public class JRubyScriptRunner implements IScriptRunner {
 			System.setErr(ps);
 			interpreter.setError(ps);
 		} catch (Exception e) {
-			log(-1, "%s: redirect STDERR: %s", getName(), e.getMessage());
+			log(-1, "doRedirect: Couldn't redirect STDERR\n%s", e.getMessage());
 			return false;
 		}
 		return true;
