@@ -1,8 +1,8 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
- * modified RaiMan 2013
+ * modified RaiMan
  */
 package org.sikuli.script;
 
@@ -25,22 +25,35 @@ public class ObserveEvent {
   private Match match = null;
   private int index = -1;
   private List<Match> changes = null;
+  private long time;
+  private String name;
 
-  public ObserveEvent() {
+  protected ObserveEvent() {
   }
-
+  
   /**
    * INTERNAL USE ONLY: creates an observed event
    */
-  public ObserveEvent(Object ptn, Match m, Region r) {
-		init(ptn, m, r);
+  protected ObserveEvent(String name, Type type, Object ptn, Match m, Region r, long now) {
+    init(name, type, ptn, m, r, now);
   }
 
-	private void init(Object ptn, Match m, Region r) {
+	private void init(String name, Type type, Object ptn, Match m, Region r, long now) {
+    this.name = name;
+    this.type = type;
     setRegion(r);
     setMatch(m);
     setPattern(ptn);
+    time = now;
 	}
+  
+  /**
+   *
+   * @return the observer name of this event
+   */
+  public String getName() {
+    return name;
+  }
 
   /**
    *
@@ -68,15 +81,7 @@ public class ObserveEvent {
     }
   }
 
-  /**
-   *
-   * @return the index in the observer map in Observer (CHANGE)
-   */
-  public int getIndex() {
-    return index;
-  }
-
-  public void setIndex(int index) {
+  protected void setIndex(int index) {
     this.index = index;
   }
 
@@ -119,6 +124,10 @@ public class ObserveEvent {
       }
     }
   }
+  
+  public long getTime() {
+    return time;
+  }
 
   /**
    * tell the observer to repeat this event's observe action immediately
@@ -134,39 +143,39 @@ public class ObserveEvent {
    * @param secs
    */
   public void repeat(long secs) {
-    region.getObserver().repeat(type, pattern, match, secs);
+    region.getObserver().repeat(name, secs);
   }
 
   /**
    * @return the number how often this event has already been triggered until now
    */
   public int getCount() {
-    if (type == Type.CHANGE) {
-      return region.getObserver().getChangedCount(index);
-    } else {
-      return region.getEvtMgr().getCount(pattern);
-    }
+    return region.getObserver().getCount(name);
   }
 
   /**
-   * stops the observer after returning from the handler
+   * stops the observer
    */
   public void stopObserver() {
     region.stopObserver();
   }
 
-  public void stopObserver(String msg) {
-    region.stopObserver(msg);
+  /**
+   * stops the observer and prints the given text
+   * @param text
+   */
+  public void stopObserver(String text) {
+    region.stopObserver(text);
   }
 
   @Override
   public String toString() {
     if (type == Type.CHANGE) {
-      return String.format("Event(%s) on: %s with: %d count: %d", 
-            type, region, index, getCount());
+      return String.format("Event(%s) %s on: %s with: %d count: %d", 
+            type, name, region, index, getCount());
     } else {
-      return String.format("Event(%s) on: %s with: %s match: %s count: %d",
-            type, region, pattern, match, getCount());
+      return String.format("Event(%s) %s on: %s with: %s match: %s count: %d",
+            type, name, region, pattern, match, getCount());
     }
   }
 }

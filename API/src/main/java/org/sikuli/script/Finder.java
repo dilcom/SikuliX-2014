@@ -196,7 +196,13 @@ public class Finder implements Iterator<Match> {
       _results = Vision.find(_findInput);
       _cur_result_i = 0;
       return img.getFilename();
-    } else {
+    } else if (img.isUseable()) {
+      if (img.getPattern() !=null) {
+        return find(img.getPattern());
+      } else {
+        return null;
+      }
+    } else {      
       return null;
     }
   }
@@ -277,7 +283,7 @@ public class Finder implements Iterator<Match> {
   /**
    * do a findAll op with the given image in the Finder's image
 	 * (hasNext() and next() will reveal possible match results)
-   * @param imageOrText
+   * @param img
 	 * @return null. if find setup not possible
    */
   public String findAll(Image img)  {
@@ -299,7 +305,7 @@ public class Finder implements Iterator<Match> {
   /**
    * do a findAll op with the given text in the Finder's image
 	 * (hasNext() and next() will reveal possible match results)
-   * @param imageOrText
+   * @param text
 	 * @return null. if find setup not possible
    */
   public String findAllText(String text) {

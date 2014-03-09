@@ -167,12 +167,20 @@ public class JRubyScriptRunner implements IScriptRunner {
 
 	@Override
 	public String getCommandLineHelp() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+		return "You are using the JRuby ScriptRunner";
 	}
 
 	@Override
 	public String getInteractiveHelp() {
-		throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+            return "**** this might be helpful ****\n"
+                    + "-- execute a line of code by pressing <enter>\n"
+                    + "-- separate more than one statement on a line using ;\n"
+                    + "-- Unlike the iDE, this command window will not vanish, when using a Sikuli feature\n"
+                    + "   so take care, that all you need is visible on the screen\n"
+                    + "-- to create an image interactively:\n"
+                    + "img = capture()\n"
+                    + "-- use a captured image later:\n"
+                    + "click(img)";
 	}
 
 	@Override

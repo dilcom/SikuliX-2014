@@ -27,7 +27,7 @@ import javax.swing.text.*;
 import javax.swing.text.html.*;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.IScriptRunner;
-import org.sikuli.basics.SikuliX;
+import org.sikuli.basics.Settings;
 
 public class EditorConsolePane extends JPanel implements Runnable {
 
@@ -61,7 +61,7 @@ public class EditorConsolePane extends JPanel implements Runnable {
 
     if (ENABLE_IO_REDIRECT) {
 			int npipes = 2;
-			NUM_PIPES = npipes * SikuliIDE.scriptRunner.size();
+			NUM_PIPES = npipes * Settings.scriptRunner.size();
 			pin = new PipedInputStream[NUM_PIPES];
 			reader = new Thread[NUM_PIPES];
       for (int i = 0; i < NUM_PIPES; i++) {
@@ -69,7 +69,7 @@ public class EditorConsolePane extends JPanel implements Runnable {
       }
 
 			int irunner = 0;
-			for (IScriptRunner srunner : SikuliIDE.scriptRunner.values()) {
+			for (IScriptRunner srunner : Settings.scriptRunner.values()) {
 				if (srunner.doSomethingSpecial("redirect", pin)) {
 					Debug.log(2, "EditorConsolePane: stdout/stderr redirected to console"
 									+ " for " + srunner.getName());

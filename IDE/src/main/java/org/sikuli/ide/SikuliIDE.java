@@ -54,7 +54,6 @@ import org.sikuli.script.Key;
 public class SikuliIDE extends JFrame {
 
   private static String me = "IDE";
-  private static String mem = "";
   private static int lvl = 3;
 
   private static void log(int level, String message, Object... args) {
@@ -69,7 +68,7 @@ public class SikuliIDE extends JFrame {
   final static int WARNING_DO_NOTHING = 0;
   final static int IS_SAVE_ALL = 3;
   static boolean _runningSkl = false;
-  private static NativeLayer _native;
+  private static NativeSupport nativeSupport;
   private Dimension _windowSize = null;
   private Point _windowLocation = null;
   private boolean smallScreen = false;
@@ -114,40 +113,14 @@ public class SikuliIDE extends JFrame {
   private static JFrame splash;
   private boolean firstRun = true;
   private static long start;
-  private static Map<String, IDESupport> ideSupporter = new HashMap<String, IDESupport>();
-  public static Map<String, IScriptRunner> scriptRunner = new HashMap<String, IScriptRunner>();
-
-	static {
-		ServiceLoader<IDESupport> sloader = ServiceLoader.load(IDESupport.class);
-		Iterator<IDESupport> supIterator = sloader.iterator();
-		while (supIterator.hasNext()) {
-			IDESupport current = supIterator.next();
-			try {
-				for (String ending : current.getEndings()) {
-					ideSupporter.put(ending, current);
-				}
-			} catch (Exception ex) {
-			}
-		}
-		ServiceLoader<IScriptRunner> rloader = ServiceLoader.load(IScriptRunner.class);
-		Iterator<IScriptRunner> rIterator = rloader.iterator();
-		IScriptRunner current;
-		while (rIterator.hasNext()) {
-			current = rIterator.next();
-			String name = current.getName();
-			if (!name.startsWith("Not")) {
-				scriptRunner.put(name, current);
-			}
-		}
-		if (scriptRunner.size() == 0) {
-			Debug.error("SikuliIDE: No scripting support available. Rerun Setup!");
-		}
-		current = (IScriptRunner) scriptRunner.values().toArray()[0];
-		Settings.EDEFAULT = current.getFileEndings()[0];
-	}
+  private static File isRunning;
+  private static FileOutputStream isRunningFile = null;
+  
+  static {
+  }
 
   public static IDESupport getIDESupport(String ending) {
-    return ideSupporter.get(ending);
+    return Settings.ideSupporter.get(ending);
   }
 
   public static String _I(String key, Object... args) {
@@ -173,10 +146,8 @@ public class SikuliIDE extends JFrame {
     String[] splashArgs = new String[]{
       "splash", "#", "#" + Settings.SikuliVersionIDE, "", "#", "#... starting - please wait ..."};
 
-    File isRunning;
     new File(Settings.BaseTempPath).mkdirs();
     isRunning = new File(Settings.BaseTempPath, "sikuli-ide-isrunning");
-    FileOutputStream isRunningFile = null;
     try {
       isRunning.createNewFile();
       isRunningFile = new FileOutputStream(isRunning);
@@ -190,10 +161,23 @@ public class SikuliIDE extends JFrame {
     } catch (Exception ex) {
       splashArgs[5] = "Terminating on FatalError: cannot access IDE lock ";
       splash = new MultiFrame(splashArgs);
-      log(-1, splashArgs[5] + isRunning.getAbsolutePath());
+      log(-1, splashArgs[5] + "\n" + isRunning.getAbsolutePath());
       SikuliX.pause(3);
       System.exit(1);
     }
+
+    Runtime.getRuntime().addShutdownHook(new Thread() {
+        @Override
+        public void run() {
+          log(lvl, "final cleanup");
+          try {
+            isRunningFile.close();
+          } catch (IOException ex) {
+          }
+          isRunning.delete();
+          FileManager.cleanTemp();
+        }
+    });
 
     if (System.getProperty("sikuli.FromCommandLine") == null) {
       String[] userOptions = SikuliX.collectOptions("IDE", args);
@@ -209,6 +193,9 @@ public class SikuliIDE extends JFrame {
     }
 
     start = (new Date()).getTime();
+
+    Settings.initScriptingSupport();
+    
     for (String e : args) {
       splashArgs[3] += e + " ";
     }
@@ -279,8 +266,7 @@ public class SikuliIDE extends JFrame {
     Settings.showJavaInfo();
     Settings.printArgs();
 
-// we should open the IDE
-    initNativeLayer();
+    initNativeSupport();
     try {
       UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
       //UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
@@ -288,8 +274,8 @@ public class SikuliIDE extends JFrame {
       log(-1, "Problem loading UIManager!\nError: %s", e.getMessage());
     }
 
-    if (Settings.isMac()) {
-      _native.initApp();
+    if (nativeSupport != null) {
+      nativeSupport.initApp(Debug.getDebugLevel() > 2 ? true : false);
       try {
         Thread.sleep(1000);
       } catch (InterruptedException ie) {
@@ -311,7 +297,9 @@ public class SikuliIDE extends JFrame {
       prefs.setDefaults(prefs.getUserType());
     }
 
-    _native.initIDE(this);
+    if (nativeSupport != null) {
+      nativeSupport.initIDE(this);
+    }
 
     IResourceLoader loader = FileManager.getNativeLoader("basic", args);
     loader.check(Settings.SIKULI_LIB);
@@ -424,7 +412,17 @@ public class SikuliIDE extends JFrame {
     super.setTitle(SikuliIDESettings.SikuliVersion + " - " + title);
   }
 
-  static private void initNativeLayer() {
+  static private void initNativeSupport() {
+//    String jb = FileManager.getJarName();
+//    ClassPool pool  = ClassPool.getDefault();
+//    try {
+//      pool.appendClassPath(jb);
+//      pool.find("resources.NativeSupportMac");
+//      CtClass nsm = pool.get("resources.NativeSupportMac");
+//      nativeSupport = (NativeSupport) nsm.toClass().newInstance();
+//    } catch (Exception ex) {
+//      log(-1, "JavAssist: problem:%s", ex.getMessage());
+//    }
     String os = "unknown";
     if (Settings.isWindows()) {
       os = "Windows";
@@ -433,14 +431,14 @@ public class SikuliIDE extends JFrame {
     } else if (Settings.isLinux()) {
       os = "Linux";
     }
-    String className = "org.sikuli.ide.NativeLayerFor" + os;
-
+    String className = "org.sikuli.ide.NativeSupport" + os;
     try {
       Class c = Class.forName(className);
       Constructor constr = c.getConstructor();
-      _native = (NativeLayer) constr.newInstance();
+      nativeSupport = (NativeSupport) constr.newInstance();
+      log(lvl, "Native support found for " + os);
     } catch (Exception e) {
-      log(-1, "Reflection problem: org.sikuli.ide.NativeLayerFor...!\nError: %s", e.getMessage());
+      log(-1, "No native support for %s\n%s", os, e.getMessage());
     }
   }
 
@@ -540,7 +538,7 @@ public class SikuliIDE extends JFrame {
       setCurrentFileTabTitle(file);
       return true;
     }
-    Debug.error("Can't load file " + file);
+    Debug.error("Can't load file " + file + " --- check available runners!");
 //    (new FileAction()).doCloseTab(null);
     return false;
   }
@@ -2007,8 +2005,7 @@ public class SikuliIDE extends JFrame {
       String runnerType = null;
       String cType = pane.getContentType();
       runnerType = cType.equals(Settings.CPYTHON) ? Settings.RPYTHON : Settings.RRUBY;
-      IScriptRunner srunner = SikuliX.getScriptRunner(
-              runnerType, null, Settings.getArgs());
+      IScriptRunner srunner = SikuliX.getScriptRunner(runnerType, null, Settings.getArgs());
       if (srunner == null) {
         Debug.error("Could not load a script runner for: %s (%s)", cType, runnerType);
         return;
