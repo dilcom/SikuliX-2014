@@ -30,7 +30,7 @@ public class Region {
   private static void log(int level, String message, Object... args) {
     Debug.logx(level, "", me + ": " + message, args);
   }
-  
+
   /**
    * The Screen containing the Region
    */
@@ -168,7 +168,7 @@ public class Region {
    }
    */
   //</editor-fold>
-  
+
   //<editor-fold defaultstate="collapsed" desc="Initialization">
   /**
    * Detects on which Screen the Region is present. The region is cropped to the intersection with the given screen or
@@ -349,7 +349,7 @@ public class Region {
   }
 
   //</editor-fold>
-  
+
   //<editor-fold defaultstate="collapsed" desc="Quasi-Constructors to be used in Java">
   /**
    * internal use only, used for new Screen objects to get the Region behavior
@@ -702,7 +702,7 @@ public class Region {
   }
 
   //</editor-fold>
-  
+
   //<editor-fold defaultstate="collapsed" desc="getters / setters / modificators">
   /**
    *
@@ -1010,6 +1010,17 @@ public class Region {
   }
 
   // ****************************************************
+  
+/**
+   * resets this region (usually a Screen object) to the coordinates of the containing screen
+   *
+   * Because of the wanted side effect for the containing screen, this should only be used with screen objects. 
+   * For Region objects use setRect() instead.
+   */
+  public void setROI() {
+    setROI(getScreen().getBounds());
+  }
+  
   /**
    * resets this region to the given location, and size <br> this might move the region even to another screen
    *
@@ -1051,6 +1062,15 @@ public class Region {
    */
   public void setROI(Region reg) {
     setROI(reg.getX(), reg.getY(), reg.getW(), reg.getH());
+  }
+
+  /**
+   * A function only for backward compatibility - Only makes sense with Screen objects
+   * 
+   * @return the Region being the current ROI of the containing Screen
+   */
+  public Region getROI() {
+    return new Region(getScreen().getRect());
   }
 
   // ****************************************************
@@ -1213,7 +1233,7 @@ public class Region {
   }
 
   //</editor-fold>
-  
+
   //<editor-fold defaultstate="collapsed" desc="spatial operators - new regions">
   /**
    * check if current region contains given region
@@ -1280,7 +1300,8 @@ public class Region {
   }
 
   /**
-   * create a region enlarged w pixels on left and right side<br> and h pixels at top and bottom
+   * create a region enlarged w pixels on left and right side
+	 * and h pixels at top and bottom
    *
    * @param w
    * @param h
@@ -1293,8 +1314,8 @@ public class Region {
   }
 
   /**
-   * create a region enlarged l pixels on left and r pixels right side<br> and t pixels at top side and b pixels at
-   * bottom side <br>
+   * create a region enlarged l pixels on left and r pixels right side
+	 * and t pixels at top side and b pixels a bottom side.
    * negative values go inside (shrink)
    *
    * @param l add to the left
@@ -1308,7 +1329,7 @@ public class Region {
   }
 
   /**
-   *
+   * point middle on right edge
    * @return point middle on right edge
    */
   public Location rightAt() {
@@ -1316,7 +1337,8 @@ public class Region {
   }
 
   /**
-   * positive offset goes to the right <br>might be off current screen
+   * positive offset goes to the right.
+	 * might be off current screen
    *
    * @return point with given offset horizontally to middle point on right edge
    */
@@ -1325,7 +1347,8 @@ public class Region {
   }
 
   /**
-   * create a region right of the right side with same height<br> the new region extends to the right screen border<br>
+   * create a region right of the right side with same height.
+	 * the new region extends to the right screen border<br>
    * use grow() to include the current region
    *
    * @return the new region
@@ -1336,8 +1359,9 @@ public class Region {
   }
 
   /**
-   * create a region right of the right side with same height and given width<br>
-   * negative width creates the right part with width inside the region use grow() to include the current region
+   * create a region right of the right side with same height and given width.
+   * negative width creates the right part with width inside the region
+	 * <br />use grow() to include the current region
    *
    * @param width
    * @return the new region
@@ -1714,22 +1738,37 @@ public class Region {
   //<editor-fold defaultstate="collapsed" desc="highlight">
   protected void updateSelf() {
     if (overlay != null) {
-      highlight(false);
-      highlight(true);
+      highlight(false, null);
+      highlight(true, null);
     }
   }
 
   /**
-   * Toggle the regions Highlight visibility (currently red frame)
+   * Toggle the regions Highlight visibility (red frame)
    *
    * @return the region itself
    */
   public Region highlight() {
-    if (overlay == null) {
-      highlight(true);
-    } else {
-      highlight(false);
-    }
+    // Pass true if overlay is null, false otherwise
+    highlight(overlay == null, null);
+    return this;
+  }
+
+  /**
+   * Toggle the regions Highlight visibility (frame of specified color)<br />
+   * allowed color specifications for frame color: <br />
+   * - a color name out of: black, blue, cyan, gray, green, magenta, orange, pink, red, white, yellow
+   * (lowercase and uppercase can be mixed, internally transformed to all uppercase) <br />
+   * - these colornames exactly written: lightGray, LIGHT_GRAY, darkGray and DARK_GRAY <br />
+   * - a hex value like in HTML: #XXXXXX (max 6 hex digits)
+   * - an RGB specification as: #rrrgggbbb where rrr, ggg, bbb are integer values in range 0 - 255 
+   * padded with leading zeros if needed (hence exactly 9 digits)
+   * @param color Color of frame 
+   * @return the region itself
+   */
+  public Region highlight(String color) {
+    // Pass true if overlay is null, false otherwise
+    highlight(overlay == null, color);
     return this;
   }
 
@@ -1737,14 +1776,16 @@ public class Region {
    * Sets the regions Highlighting border
    *
    * @param toEnable set overlay enabled or disabled
+   * @param color Color of frame (see method highlight(color))
    */
-  private Region highlight(boolean toEnable) {
+  private Region highlight(boolean toEnable, String color) {
     if (isOtherScreen()) {
       return this;
     }
-    Debug.action("toggle highlight " + toString() + ": " + toEnable);
+    Debug.action("toggle highlight " + toString() + ": " + toEnable +
+    		(color != null ? " color: " + color : ""));
     if (toEnable) {
-      overlay = new ScreenHighlighter(getScreen());
+      overlay = new ScreenHighlighter(getScreen(), color);
       overlay.highlight(this);
     } else {
       if (overlay != null) {
@@ -1755,22 +1796,36 @@ public class Region {
     return this;
   }
 
+
   /**
-   * show the regions Highlight for the given time in seconds (currently red frame) if 0 - use the global
-   * Settings.SlowMotionDelay
+   * show the regions Highlight for the given time in seconds (red frame)
+   * if 0 - use the global Settings.SlowMotionDelay
    *
    * @param secs time in seconds
    * @return the region itself
    */
   public Region highlight(float secs) {
+    return highlight(secs, null);
+  }
+
+  /**
+   * show the regions Highlight for the given time in seconds (frame of specified color)
+   * if 0 - use the global Settings.SlowMotionDelay
+   *
+   * @param secs time in seconds
+   * @param color Color of frame (see method highlight(color))
+   * @return the region itself
+   */
+  public Region highlight(float secs, String color) {
     if (isOtherScreen()) {
       return this;
     }
     if (secs < 0.1) {
-      return highlight((int) secs);
+      return highlight((int) secs, color);
     }
-    Debug.action("highlight " + toString() + " for " + secs + " secs");
-    ScreenHighlighter _overlay = new ScreenHighlighter(getScreen());
+    Debug.action("highlight " + toString() + " for " + secs + " secs" +
+          (color != null ? " color: " + color : ""));
+    ScreenHighlighter _overlay = new ScreenHighlighter(getScreen(), color);
     _overlay.highlight(this, secs);
     return this;
   }
@@ -1783,17 +1838,29 @@ public class Region {
    * @return this region
    */
   public Region highlight(int secs) {
+	return highlight(secs, null);
+  }
+
+
+  /**
+   * Show highlight in selected color
+   * 
+   * @param secs time in seconds
+   * @param color Color of frame (see method highlight(color))
+   * @return this region
+   */
+  public Region highlight(int secs, String color) {
     if (isOtherScreen()) {
       return this;
     }
     if (secs > 0) {
-      return highlight((float) secs);
+      return highlight((float) secs, color);
     }
     if (lastMatch != null) {
       if (secs < 0) {
-        return lastMatch.highlight((float) -secs);
+        return lastMatch.highlight((float) -secs, color);
       }
-      return lastMatch.highlight(Settings.DefaultHighlightTime);
+      return lastMatch.highlight(Settings.DefaultHighlightTime, color);
     }
     return this;
   }
@@ -2172,7 +2239,7 @@ public class Region {
           img = Image.create((String) ptn);
           if (img.isValid()) {
             lastSearchTime = (new Date()).getTime();
-            f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut());
+            f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), null);
             if (!f.hasNext()) {
               f.find(img);
             }
@@ -2191,7 +2258,7 @@ public class Region {
         if (((Pattern) ptn).isValid()) {
           img = ((Pattern) ptn).getImage();
           lastSearchTime = (new Date()).getTime();
-          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut());
+          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), (Pattern) ptn);
           if (!f.hasNext()) {
             f.find((Pattern) ptn);
           }
@@ -2202,7 +2269,7 @@ public class Region {
         if (((Image) ptn).isValid()) {
           img = ((Image) ptn);
           lastSearchTime = (new Date()).getTime();
-          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut());
+          f = checkLastSeenAndCreateFinder(img, repeating.getFindTimeOut(), null);
           if (!f.hasNext()) {
             f.find(img);
           }
@@ -2227,12 +2294,16 @@ public class Region {
     return m;
   }
 
-  private Finder checkLastSeenAndCreateFinder(Image img, double findTimeout) {
+  private Finder checkLastSeenAndCreateFinder(Image img, double findTimeout, Pattern ptn) {
     if (!Settings.UseImageFinder && Settings.CheckLastSeen && null != img.getLastSeen()) {
       Region r = Region.create(img.getLastSeen());
       if (this.contains(r)) {
         Finder f = new Finder(new Screen().capture(r), r);
-        f.find(new Pattern(img).similar(Settings.CheckLastSeenSimilar));
+        if (ptn == null) {
+          f.find(new Pattern(img).similar(Settings.CheckLastSeenSimilar));
+        } else {
+          f.find(new Pattern(ptn).similar(Settings.CheckLastSeenSimilar));
+        }
         if (f.hasNext()) {
           log(lvl, "Region: checkLastSeen: still there");
           return f;
@@ -2463,10 +2534,10 @@ public class Region {
     }
     return regionObserver;
   }
-  
+
   /**
    * evaluate if at least one event observer is defined for this region (the observer need not be running)
-   * @return true, if the region has an observer with event observers 
+   * @return true, if the region has an observer with event observers
    */
   public boolean hasObserver() {
     if (regionObserver != null) {
@@ -2483,7 +2554,7 @@ public class Region {
   public boolean isObserving() {
     return observing;
   }
-  
+
   /**
    *
    * @return true if any events have happened for this region, false otherwise
@@ -2491,10 +2562,10 @@ public class Region {
   public boolean hasEvents() {
     return Observing.hasEvents(this);
   }
-  
+
   /**
    * the region's events are removed from the list
-   * @return the region's happened events as array if any (size might be 0)  
+   * @return the region's happened events as array if any (size might be 0)
    */
   public ObserveEvent[] getEvents() {
     return Observing.getEvents(this);
@@ -2503,7 +2574,7 @@ public class Region {
   /**
    * the event is removed from the list
    * @param name
-   * @return the named event if happened otherwise null 
+   * @return the named event if happened otherwise null
    */
   public ObserveEvent getEvent(String name) {
     return Observing.getEvent(name);
@@ -2516,7 +2587,7 @@ public class Region {
   public void setInactive(String name) {
     if (!hasObserver()) {
       return;
-    } 
+    }
     Observing.setActive(name, false);
   }
 
@@ -2527,7 +2598,7 @@ public class Region {
   public void setActive(String name) {
     if (!hasObserver()) {
       return;
-    } 
+    }
     Observing.setActive(name, true);
   }
 
@@ -2570,9 +2641,9 @@ public class Region {
 	}
 
   private <PSI> String onAppearDo(PSI target, Object observer) {
-    String name = Observing.add(this, 
+    String name = Observing.add(this,
             (ObserverCallBack) observer, ObserveEvent.Type.APPEAR, target);
-    log(lvl, "%s: onAppear%s: %s with: %s", toStringShort(), 
+    log(lvl, "%s: onAppear%s: %s with: %s", toStringShort(),
             (observer == null ? "" : " with callback"), name, target);
     return name;
   }
@@ -2616,9 +2687,9 @@ public class Region {
 	}
 
   private <PSI> String onVanishDo(PSI target, Object observer) {
-    String name = Observing.add(this, 
+    String name = Observing.add(this,
             (ObserverCallBack) observer, ObserveEvent.Type.VANISH, target);
-    log(lvl, "%s: onVanish%s: %s with: %s", toStringShort(), 
+    log(lvl, "%s: onVanish%s: %s with: %s", toStringShort(),
             (observer == null ? "" : " with callback"), name, target);
     return name;
   }
@@ -2689,7 +2760,7 @@ public class Region {
 
   public String onChangeDo(int threshold, Object observer) {
     String name = Observing.add(this, (ObserverCallBack) observer, ObserveEvent.Type.CHANGE, threshold);
-    log(lvl, "%s: onChange%s: %s minSize: %d", toStringShort(), 
+    log(lvl, "%s: onChange%s: %s minSize: %d", toStringShort(),
             (observer == null ? "" : " with callback"), name, threshold);
     return name;
   }
@@ -2858,7 +2929,7 @@ public class Region {
    * before and use the match<br> Region - position at center<br> Match - position at match's targetOffset<br> Location
    * - position at that point<br>
    *
-   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @return 1 if possible, 0 otherwise
    * @throws FindFailed for Pattern or Filename
@@ -2887,7 +2958,7 @@ public class Region {
    * position at center<br> Match - position at match's targetOffset<br>
    * Location - position at that point<br>
    *
-   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @return 1 if possible, 0 otherwise
    * @throws FindFailed for Pattern or Filename
@@ -2901,7 +2972,7 @@ public class Region {
    * Pattern or Filename - do a find before and use the match<br> Region - position at center<br>
    * Match - position at match's targetOffset<br> Location - position at that point<br>
    *
-   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> to search: Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @param modifiers the value of the resulting bitmask (see KeyModifier)
    * @return 1 if possible, 0 otherwise
@@ -2934,7 +3005,7 @@ public class Region {
    * position at center<br> Match - position at match's targetOffset<br>
    * Location - position at that point<br>
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @return 1 if possible, 0 otherwise
    * @throws FindFailed for Pattern or Filename
@@ -2948,7 +3019,7 @@ public class Region {
    * Pattern or Filename - do a find before and use the match<br> Region - position at center<br > Match - position at
    * match's targetOffset<br> Location - position at that point<br>
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @param modifiers the value of the resulting bitmask (see KeyModifier)
    * @return 1 if possible, 0 otherwise
@@ -2994,8 +3065,8 @@ public class Region {
    * Pattern or Filename - do a find before and use the match<br> Region - position at center<br > Match - position at
    * match's targetOffset<br> Location - position at that point<br>
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
-   * @param target 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
+   * @param target
    * @param modifiers the value of the resulting bitmask (see KeyModifier)
    * @return 1 if possible, 0 otherwise
    * @throws FindFailed for Pattern or Filename
@@ -3072,8 +3143,8 @@ public class Region {
    * Prepare a drag action: move mouse to given target <br>press and hold left mouse button <br >wait
    * Settings.DelayAfterDrag
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
-   * @param target 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
+   * @param target
    * @return 1 if possible, 0 otherwise
    * @throws FindFailed
    */
@@ -3469,7 +3540,7 @@ public class Region {
    * character/key after another using keyDown/keyUp <br>about the usable Key constants see keyDown(keys)
    * <br>Class Key only provides a subset of a US-QWERTY PC keyboard layout
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @param text containing characters and/or Key constants
    * @return 1 if possible, 0 otherwise
@@ -3484,7 +3555,7 @@ public class Region {
    * character/key after another using keyDown/keyUp <br>while holding down the given modifier keys<br>about the usable
    * Key constants see keyDown(keys) <br>Class Key only provides a subset of a US-QWERTY PC keyboard layout
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
    * @param target
    * @param text containing characters and/or Key constants
    * @param modifiers constants according to class KeyModifiers
@@ -3500,8 +3571,8 @@ public class Region {
    * character/key after another using keyDown/keyUp <br>while holding down the given modifier keys<br>about the usable
    * Key constants see keyDown(keys) <br>Class Key only provides a subset of a US-QWERTY PC keyboard layout
    *
-   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location 
-   * @param target 
+   * @param <PFRML> Pattern, Filename, Text, Region, Match or Location
+   * @param target
    * @param text containing characters and/or Key constants
    * @param modifiers constants according to class Key - combine using +
    * @return 1 if possible, 0 otherwise

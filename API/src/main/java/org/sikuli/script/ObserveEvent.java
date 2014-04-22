@@ -9,6 +9,9 @@ package org.sikuli.script;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * provides information about the observed event being in the {@link ObserverCallBack}
+ */
 public class ObserveEvent {
 
   public enum Type {
@@ -27,26 +30,52 @@ public class ObserveEvent {
   private List<Match> changes = null;
   private long time;
   private String name;
+  private Object[] vals = new Object[] {null, null, null};
 
   protected ObserveEvent() {
   }
-  
+
   /**
    * INTERNAL USE ONLY: creates an observed event
    */
-  protected ObserveEvent(String name, Type type, Object ptn, Match m, Region r, long now) {
+  protected ObserveEvent(String name, Type type, Object ptn, Object m, Object r, long now) {
     init(name, type, ptn, m, r, now);
   }
 
-	private void init(String name, Type type, Object ptn, Match m, Region r, long now) {
+	private void init(String name, Type type, Object ptn, Object m, Object r, long now) {
     this.name = name;
     this.type = type;
-    setRegion(r);
-    setMatch(m);
-    setPattern(ptn);
     time = now;
+    if (type == Type.GENERIC) {
+      setVals(ptn, m, r);
+    } else {
+      setRegion(r);
+      setMatch(m);
+      setPattern(ptn);
+    }
 	}
   
+  /**
+   * for type GENERIC: 3 values can be stored in the event 
+   * (the value's type is known by creator and user of getVals as some private protocol) 
+   * @param v1
+   * @param v2
+   * @param v3
+   */
+  protected void setVals(Object v1, Object v2, Object v3) {
+    vals[0] = v1;
+    vals[1] = v2;
+    vals[2] = v3;
+  }
+  
+  /**
+   * for type GENERIC: (the value's type is known by creator and user of getVals as some private protocol)
+   * @return an array with the 3 stored values (might be null)
+   */
+  public Object[] getVals() {
+    return vals;
+  }
+
   /**
    *
    * @return the observer name of this event
@@ -57,14 +86,16 @@ public class ObserveEvent {
 
   /**
    *
-   * @return this event's observer's region
+   * @return this event's observer's region 
    */
   public Region getRegion() {
     return region;
   }
 
-  protected void setRegion(Region r) {
-    region = r;
+  protected void setRegion(Object r) {
+    if (r instanceof Region) {
+      region = (Region) r;
+    }
   }
 
   /**
@@ -75,9 +106,9 @@ public class ObserveEvent {
     return match;
   }
 
-  protected void setMatch(Match m) {
-    if (null != m) {
-      match = new Match(m);
+  protected void setMatch(Object m) {
+    if (null != m && m instanceof Match) {
+      match = new Match((Match) m);
     }
   }
 
@@ -120,11 +151,13 @@ public class ObserveEvent {
       if (p.getClass().isInstance("")) {
         pattern = new Pattern((String) p);
       } else {
-        pattern = new Pattern((Pattern) p);
+        if (p instanceof Pattern) {
+          pattern = new Pattern((Pattern) p);
+        }
       }
     }
   }
-  
+
   public long getTime() {
     return time;
   }
@@ -171,7 +204,7 @@ public class ObserveEvent {
   @Override
   public String toString() {
     if (type == Type.CHANGE) {
-      return String.format("Event(%s) %s on: %s with: %d count: %d", 
+      return String.format("Event(%s) %s on: %s with: %d count: %d",
             type, name, region, index, getCount());
     } else {
       return String.format("Event(%s) %s on: %s with: %s match: %s count: %d",

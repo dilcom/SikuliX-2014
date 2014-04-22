@@ -115,7 +115,7 @@ public class SikuliIDE extends JFrame {
   private static long start;
   private static File isRunning;
   private static FileOutputStream isRunningFile = null;
-  
+
   static {
   }
 
@@ -195,7 +195,7 @@ public class SikuliIDE extends JFrame {
     start = (new Date()).getTime();
 
     Settings.initScriptingSupport();
-    
+
     for (String e : args) {
       splashArgs[3] += e + " ";
     }
@@ -413,6 +413,7 @@ public class SikuliIDE extends JFrame {
   }
 
   static private void initNativeSupport() {
+//TODO IDE native Support
 //    String jb = FileManager.getJarName();
 //    ClassPool pool  = ClassPool.getDefault();
 //    try {
@@ -2375,10 +2376,11 @@ public class SikuliIDE extends JFrame {
   }
 
   public void onStopRunning() {
-    Debug.log(3, "StopRunning");
-    this.setVisible(true);
+    Debug.log(3, "StopRunning after AbortKey");
     _btnRun.stopRunning();
     _btnRunViz.stopRunning();
+    org.sikuli.script.SikuliX.cleanUp(-1);
+    this.setVisible(true);
   }
 
   private void initHotkeys() {
