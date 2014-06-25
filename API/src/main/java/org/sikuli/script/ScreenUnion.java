@@ -22,13 +22,17 @@ public class ScreenUnion extends Screen {
 
   public ScreenUnion() {
     super(true);
-    Rectangle r = getBounds();
-    x = r.x;
-    y = r.y;
-    w = r.width;
-    h = r.height;
+    _bounds = new Rectangle();
+    for (int i = 0; i < Screen.getNumberScreens(); i++) {
+      _bounds = _bounds.union(Screen.getBounds(i));
+    }
+    x = _bounds.x;
+    y = _bounds.y;
+    w = _bounds.width;
+    h = _bounds.height;
   }
 
+  @Override
   public int getIdFromPoint(int x, int y) {
     Rectangle sr = getBounds();
     int _x = x + getBounds().x;
@@ -49,19 +53,22 @@ public class ScreenUnion extends Screen {
 
   @Override
   public Rectangle getBounds() {
-    if (_bounds == null) {
-      _bounds = new Rectangle();
-      for (int i = 0; i < Screen.getNumberScreens(); i++) {
-        _bounds = _bounds.union(Screen.getBounds(i));
-      }
-    }
     return _bounds;
   }
 
   @Override
   public ScreenImage capture(Rectangle rect) {
-    Debug.log(3, "ScreenUnion: capture: " + rect);
-    return Region.create(rect).getScreen().capture(rect);
+    Debug.log(3, "ScreenUnion: capture: (%d,%d) %dx%d", rect.x, rect.y, rect.width, rect.height);
+    Screen s = Screen.getPrimaryScreen();
+    Location tl = new Location(rect.getLocation());
+    for (Screen sx : Screen.screens) {
+      if (sx.contains(tl)) {
+        s = sx;
+        break;
+      }
+    }
+    ScreenImage si = s.capture(rect);
+    return si;
   }
 
   @Override

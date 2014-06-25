@@ -8,6 +8,7 @@ package org.sikuli.script;
 
 import java.awt.MouseInfo;
 import java.awt.Point;
+import java.awt.PointerInfo;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 import java.util.Date;
@@ -19,14 +20,21 @@ import org.sikuli.basics.Settings;
  * At any one time, the mouse has one owner (usually a Region object) <br>
  * who exclusively uses the mouse, all others wait for the mouse to be free again <br>
  * if more than one possible owner is waiting, the next owner is uncertain <br>
- * It is detected, when the mouse is moved external from the workflow, which can be
- * used for appropriate actions (e.g. pause a script) <br>
- * the mouse can be blocked for a longer time, so only this owner can use
- * the mouse (like some transactional processing) <br>
+ * It is detected, when the mouse is moved external from the workflow, which can be used for
+ * appropriate actions (e.g. pause a script) <br>
+ * the mouse can be blocked for a longer time, so only this owner can use the mouse (like some
+ * transactional processing) <br>
  * Currently deadlocks and infinite waits are not detected, but should not happen ;-) <br>
  * Contained are methods to use the mouse (click, move, button down/up) as is
  */
 public class Mouse {
+
+  private static final String me = "Mouse";
+  private static final int lvl = 3;
+
+  private static void log(int level, String message, Object... args) {
+    Debug.logx(level, "", me + ": " + message, args);
+  }
 
   private static Mouse mouse = null;
 
@@ -42,7 +50,7 @@ public class Mouse {
   public static final int MouseMovedPause = 2;
   public static final int MouseMovedAction = 3;
   private static int mouseMovedResponse = MouseMovedIgnore;
-  private static ObserverCallBack callBack;
+  private static ObserverCallBack mouseMovedCallback = null;
 
   protected Location mousePos;
   protected boolean clickDouble;
@@ -61,6 +69,10 @@ public class Mouse {
     this.lastPos = null;
   }
 
+  public static Location at() {
+    return new Location(getLocation());
+  }
+
   /**
    * To get the one Mouse instance used for synchronisation
    *
@@ -71,7 +83,7 @@ public class Mouse {
     }
     return mouse;
   }
-  
+
   public static void reset() {
     if (mouse == null) {
       return;
@@ -80,10 +92,11 @@ public class Mouse {
     get().let(get().getOwner());
     get().let(get().getOwner());
     up();
-    setMouseMovedResponse(MouseMovedIgnore);
+    mouseMovedResponse = MouseMovedIgnore;
+    mouseMovedCallback = null;
     mouse = null;
   }
-  
+
   private Object getOwner() {
     return owner;
   }
@@ -102,27 +115,28 @@ public class Mouse {
    * - Mouse.MouseMovedShow (1) show and ignore it <br>
    * - Mouse.MouseMovedPause (2) show it and pause until user says continue <br>
    * (2 not implemented yet - 1 is used)
-   * @param mouseMovedResponse
+   *
+   * @param movedAction
    */
-  public static void setMouseMovedResponse(int mouseMovedResponse) {
-    if (mouseMovedResponse > -1 && mouseMovedResponse < 3) {
-      Mouse.mouseMovedResponse = mouseMovedResponse;
+  public static void setMouseMovedAction(int movedAction) {
+    if (movedAction > -1 && movedAction < 3) {
+      mouseMovedResponse = movedAction;
+      mouseMovedCallback = null;
+      log(lvl, "setMouseMovedAction: %d", mouseMovedResponse);
     }
   }
-  
+
   /**
    * what to do if mouse is moved outside Sikuli's mouse protection <br>
    * only 3 is honored:<br>
    * in case of event the user provided callBack.happened is called
-   * @param mouseMovedResponse
+   *
    * @param callBack
    */
-  public static void setMouseMovedResponse(int mouseMovedResponse, ObserverCallBack callBack) {
-    if (mouseMovedResponse == 3) {
-      if(callBack != null) {
-        Mouse.mouseMovedResponse = 3;
-        Mouse.callBack = callBack;
-      }
+  public static void setMouseMovedCallback(ObserverCallBack callBack) {
+    if (callBack != null) {
+      Mouse.mouseMovedResponse = 3;
+      Mouse.mouseMovedCallback = callBack;
     }
   }
 
@@ -140,6 +154,7 @@ public class Mouse {
    * to block the mouse globally for the given owner <br>
    * only the contained mouse methods having the same owner will be granted
    *
+   * @param owner
    * @return success
    */
   public static boolean block(Object owner) {
@@ -163,7 +178,8 @@ public class Mouse {
   /**
    * free the mouse globally for this owner after a block(owner)
    *
-   * @return success  (false means: not blocked currently for this owner)
+   * @param owner
+   * @return success (false means: not blocked currently for this owner)
    */
   public static boolean unblock(Object owner) {
     if (owner == null) {
@@ -207,7 +223,7 @@ public class Mouse {
       checkLastPos();
       keep = false;
       this.owner = owner;
-      Debug.log(3, "Mouse: use start: %s", owner);
+      log(lvl+1, "use start: %s", owner);
       return true;
     }
     Debug.error("Mouse: synch problem - use start: %s", owner);
@@ -231,11 +247,11 @@ public class Mouse {
         keep = false;
         return true;
       }
-      lastPos = MouseInfo.getPointerInfo().getLocation();
+      lastPos = getLocation();
       inUse = false;
       this.owner = null;
       notify();
-      Debug.log(3, "Mouse: use stop: %s", owner);
+      log(lvl+1, "use stop: %s", owner);
       return true;
     }
     return false;
@@ -251,45 +267,56 @@ public class Mouse {
     }
     if (inUse && this.owner == owner) {
       keep = true;
-      Debug.log(3, "Mouse: use keep: %s", owner);
+      log(lvl+1, "use keep: %s", owner);
       return true;
     }
     return false;
+  }
+
+  private static Point getLocation() {
+    PointerInfo mp = MouseInfo.getPointerInfo();
+    if (mp != null) {
+      return MouseInfo.getPointerInfo().getLocation();
+    } else {
+      Debug.error("Mouse: not possible to get mouse position (PointerInfo == null)");
+      return null;
+    }
   }
 
   private void checkLastPos() {
     if (lastPos == null) {
       return;
     }
-    Point pos = MouseInfo.getPointerInfo().getLocation();
-    if (lastPos.x != pos.x || lastPos.y != pos.y) {
-      Debug.error("Mouse: moved externally");
+    Point pos = getLocation();
+    if (pos != null && (lastPos.x != pos.x || lastPos.y != pos.y)) {
+      log(lvl, "moved externally: now (%d,%d) was (%d,%d) (mouseMovedResponse %d)",
+              pos.x, pos.y, lastPos.x, lastPos.y, mouseMovedResponse);
       if (mouseMovedResponse > 0) {
         showMousePos(pos);
       }
-      if (mouseMovedResponse == 2) {
+      if (mouseMovedResponse == MouseMovedPause) {
 //TODO implement 2
         return;
       }
-      if (mouseMovedResponse == 3) {
+      if (mouseMovedResponse == MouseMovedAction) {
 //TODO implement 3
-        if (callBack != null) {
-          callBack.happened(new ObserveEvent("MouseMoved", ObserveEvent.Type.GENERIC, 
+        if (mouseMovedCallback != null) {
+          mouseMovedCallback.happened(new ObserveEvent("MouseMoved", ObserveEvent.Type.GENERIC,
                   lastPos, new Location(pos), null, (new Date()).getTime()));
         }
       }
     }
   }
-  
+
   public static boolean hasMoved() {
-    Point pos = MouseInfo.getPointerInfo().getLocation();
+    Point pos = getLocation();
     if (Mouse.get().lastPos.x != pos.x || Mouse.get().lastPos.y != pos.y) {
       return true;
     }
     return false;
   }
 
-  private void showMousePos(Point pos) {
+  private static void showMousePos(Point pos) {
     Location lPos = new Location(pos);
     Region inner = lPos.grow(20).highlight();
     delay(500);
@@ -319,8 +346,7 @@ public class Mouse {
    * - one value <br>
    * &lt; 0 wait before mouse down <br>
    * &gt; 0 wait after mouse up <br>
-   * - 2 or 3 values
-   * 1st wait before mouse down <br>
+   * - 2 or 3 values 1st wait before mouse down <br>
    * 2nd wait after mouse up <br>
    * 3rd inner wait (milli secs, cut to 1000): pause between mouse down and up (Settings.ClickDelay)
    *
@@ -508,9 +534,10 @@ public class Mouse {
     if (suspended) {
       return;
     }
-    if (0 == Screen.getPrimaryScreen().getRobot().mouseUp(buttons)) {
-      get().let(region);
-    }
+    Screen.getPrimaryScreen().getRobot().mouseUp(buttons);
+		if (region != null) {
+			get().let(region);
+		}
   }
 
   /**
