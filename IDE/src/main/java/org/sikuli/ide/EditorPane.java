@@ -57,7 +57,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	public boolean showThumbs;
 	// TODO: move to SikuliDocument ????
 	private IndentationLogic _indentationLogic = null;
-	static Pattern patPngStr = Pattern.compile("(\"[^\"]+?\\.(?i)(png|jpg)\")");
+	static Pattern patPngStr = Pattern.compile("(\"[^\"]+?\\.(?i)(png|jpg|jpeg)\")");
 	static Pattern patCaptureBtn = Pattern.compile("(\"__CLICK-TO-CAPTURE__\")");
 	static Pattern patPatternStr = Pattern.compile(
 					"\\b(Pattern\\s*\\(\".*?\"\\)(\\.\\w+\\([^)]*\\))+)");
@@ -874,7 +874,8 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			//System.out.println("["+line+"]");
 			if (m.find()) {
 				int len = m.end() - m.start();
-				if (replaceWithImage(startOff + m.start(), startOff + m.end(), ptn)) {
+        boolean replaced = replaceWithImage(startOff + m.start(), startOff + m.end(), ptn);
+				if (replaced) {
 					startOff += m.start() + 1;
 					endOff -= len - 1;
 				} else {
@@ -920,12 +921,16 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		return String.format("Region(%d,%d,%d,%d)", x, y, w, h);
 	}
 
-	public String getPatternString(String ifn, float sim, Location off) {
+	public String getPatternString(String ifn, float sim, Location off, Image img) {
+//TODO ifn really needed??
 		if (ifn == null) {
 			return "\"" + EditorPatternLabel.CAPTURE + "\"";
 		}
-		String img = new File(ifn).getName();
-		String pat = "Pattern(\"" + img + "\")";
+		String imgName = new File(ifn).getName();
+		if (img != null) {
+			imgName = img.getName();
+		}
+		String pat = "Pattern(\"" + imgName + "\")";
 		String ret = "";
 		if (sim > 0) {
 			if (sim >= 0.99F) {
@@ -940,7 +945,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		if (!ret.equals("")) {
 			ret = pat + ret;
 		} else {
-			ret = "\"" + img + "\"";
+			ret = "\"" + imgName + "\"";
 		}
 		return ret;
 	}
