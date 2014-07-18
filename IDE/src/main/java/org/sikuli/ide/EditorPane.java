@@ -1,8 +1,8 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
- * modified RaiMan 2013
+ * modified RaiMan 2014
  */
 package org.sikuli.ide;
 
@@ -32,7 +32,7 @@ import org.sikuli.basics.FileManager;
 import org.sikuli.basics.IResourceLoader;
 import org.sikuli.basics.IndentationLogic;
 import org.sikuli.script.Location;
-import org.sikuli.basics.SikuliX;
+import org.sikuli.basics.Sikulix;
 import org.sikuli.script.Image;
 import org.sikuli.script.ImagePath;
 import org.sikuli.syntaxhighlight.ResolutionException;
@@ -42,16 +42,22 @@ import org.sikuli.syntaxhighlight.grammar.TokenType;
 
 public class EditorPane extends JTextPane implements KeyListener, CaretListener {
 
-	private static final String me = "EditorPane: ";
+	private static final String me = "EditorPane";
+  private static final int lvl = 3;
+
+  private static void log(int level, String message, Object... args) {
+    Debug.logx(level, "", me + ": " + message, args);
+  }
+
 	private static TransferHandler transferHandler = null;
-	private static Map<String, Lexer> lexers = new HashMap<String, Lexer>();
+	private static final Map<String, Lexer> lexers = new HashMap<String, Lexer>();
 	private PreferencesUser pref;
 	private File _editingFile;
 	private String editingType = null;
 	private String _srcBundlePath = null;
 	private boolean _srcBundleTemp = false;
 	private boolean _dirty = false;
-	private EditorCurrentLineHighlighter _highlighter;
+	private EditorCurrentLineHighlighter _highlighter = null;
 	private EditorUndoManager _undo = null;
 	private boolean hasErrorHighlight = false;
 	public boolean showThumbs;
@@ -68,8 +74,9 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	private boolean _can_update_caret_last_x = true;
 	private SikuliIDEPopUpMenu popMenuImage;
 	private String sikuliContentType;
-  private SikuliEditorKit editorKit;
-  private EditorViewFactory editorViewFactory;
+	private SikuliEditorKit editorKit;
+	private EditorViewFactory editorViewFactory;
+  private DirtyHandler dirtyHandler;
 
 	//<editor-fold defaultstate="collapsed" desc="Initialization">
 	public EditorPane(SikuliIDE ide) {
@@ -89,6 +96,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		String scrType = null;
 		boolean paneIsEmpty = false;
 
+    log(lvl, "initBeforeLoad: %s", scriptType);
 		if (scriptType == null) {
 			scriptType = Settings.EDEFAULT;
 			paneIsEmpty = true;
@@ -103,10 +111,11 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			_indentationLogic = null;
 		}
 
+//TODO should know, that scripttype not changed here to avoid unnecessary new setups    
 		if (scrType != null) {
 			sikuliContentType = scrType;
 			editorKit = new SikuliEditorKit();
-      editorViewFactory = (EditorViewFactory) editorKit.getViewFactory();
+			editorViewFactory = (EditorViewFactory) editorKit.getViewFactory();
 			setEditorKit(editorKit);
 			setContentType(scrType);
 
@@ -122,15 +131,19 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			}
 		}
 
-		initKeyMap();
 
 		if (transferHandler == null) {
 			transferHandler = new MyTransferHandler();
 		}
 		setTransferHandler(transferHandler);
-		_highlighter = new EditorCurrentLineHighlighter(this);
 
-		addCaretListener(_highlighter);
+    if (_highlighter == null) {
+      _highlighter = new EditorCurrentLineHighlighter(this);
+  		addCaretListener(_highlighter);
+  		initKeyMap();
+      addKeyListener(this);
+      addCaretListener(this);
+    }
 
 		setFont(new Font(pref.getFontName(), Font.PLAIN, pref.getFontSize()));
 		setMargin(new Insets(3, 3, 3, 3));
@@ -139,10 +152,8 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			setSelectionColor(new Color(170, 200, 255));
 		}
 
-		updateDocumentListeners();
+		updateDocumentListeners("initBeforeLoad");
 
-		addKeyListener(this);
-		addCaretListener(this);
 		popMenuImage = new SikuliIDEPopUpMenu("POP_IMAGE", this);
 		if (!popMenuImage.isValidMenu()) {
 			popMenuImage = null;
@@ -153,11 +164,11 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			this.setText("");
 		}
 		SikuliIDE.getStatusbar().setCurrentContentType(getSikuliContentType());
-		Debug.log(3, "InitTab: (%s)", getSikuliContentType());
-    if (!Settings.hasTypeRunner(getSikuliContentType())) {
-      SikuliX.popup("No installed runner supports (" + getSikuliContentType() + ")\n"
-              + "Trying to run the script will crash IDE!", "... serious problem detected!");
-    }
+		log(lvl, "InitTab: (%s)", getSikuliContentType());
+		if (!Settings.hasTypeRunner(getSikuliContentType())) {
+			Sikulix.popup("No installed runner supports (" + getSikuliContentType() + ")\n"
+							+ "Trying to run the script will crash IDE!", "... serious problem detected!");
+		}
 	}
 
 	public String getSikuliContentType() {
@@ -168,9 +179,13 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		return popMenuImage;
 	}
 
-	private void updateDocumentListeners() {
-		getDocument().addDocumentListener(new DirtyHandler());
-		getDocument().addUndoableEditListener(getUndoManager());
+	private void updateDocumentListeners(String source) {
+    log(lvl, "updateDocumentListeners from: %s", source);
+    if (dirtyHandler == null) {
+      dirtyHandler = new DirtyHandler();
+    }
+    getDocument().addDocumentListener(dirtyHandler);
+    getDocument().addUndoableEditListener(getUndoManager());
 	}
 
 	public EditorUndoManager getUndoManager() {
@@ -216,7 +231,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		SikuliIDE ide = SikuliIDE.getInstance();
 		int i = ide.isAlreadyOpen(fname);
 		if (i > -1) {
-			Debug.log(2, "Already open in IDE: " + fname);
+			log(lvl, "loadFile: Already open in IDE: " + fname);
 			return null;
 		}
 		loadFile(fname);
@@ -227,25 +242,25 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public void loadFile(String filename) {
+    log(lvl, "loadfile: %s", filename);
 		filename = FileManager.slashify(filename, false);
 		setSrcBundle(filename + "/");
 		File script = new File(filename);
 		_editingFile = FileManager.getScriptFile(script, null, null);
-    if (_editingFile != null) {
-      editingType = _editingFile.getAbsolutePath().substring(_editingFile.getAbsolutePath().lastIndexOf(".") + 1);
-      initBeforeLoad(editingType);
-      try {
-        this.read(new BufferedReader(new InputStreamReader(
-                new FileInputStream(_editingFile), "UTF8")), null);
-      } catch (Exception ex) {
-        _editingFile = null;
-      }
-    }
 		if (_editingFile != null) {
-			updateDocumentListeners();
+			editingType = _editingFile.getAbsolutePath().substring(_editingFile.getAbsolutePath().lastIndexOf(".") + 1);
+			initBeforeLoad(editingType);
+			try {
+				this.read(new BufferedReader(new InputStreamReader(
+								new FileInputStream(_editingFile), "UTF8")), null);
+			} catch (Exception ex) {
+				_editingFile = null;
+			}
+			updateDocumentListeners("loadFile");
 			setDirty(false);
 			_srcBundleTemp = false;
-		} else {
+		}
+		if (_editingFile == null) {
 			_srcBundlePath = null;
 		}
 	}
@@ -301,12 +316,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		String[] cmd = new String[]{"#SetFile", "-a", isBundle, path};
 		loader.doSomethingSpecial("runcmd", cmd);
 		if (!cmd[0].isEmpty()) {
-			Debug.error("makeBundle: return: " + cmd[0]);
+			log(-1, "makeBundle: return: " + cmd[0]);
 		}
 		if (asFile) {
 			if (!FileManager.writeStringToFile("/Applications/SikuliX-IDE.app",
 							(new File(path, ".LSOverride")).getAbsolutePath())) {
-				Debug.error("makeBundle: not possible: .LSOverride");
+				log(-1, "makeBundle: not possible: .LSOverride");
 			}
 		} else {
 			new File(path, ".LSOverride").delete();
@@ -326,7 +341,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		ImagePath.remove(_srcBundlePath);
 		setSrcBundle(bundlePath);
 		_editingFile = createSourceFile(bundlePath, "." + Settings.TypeEndings.get(sikuliContentType));
-		Debug.log(3, "IDE: saveAsBundle: " + getSrcBundle());
+		log(lvl, "saveAsBundle: " + getSrcBundle());
 		writeSrcFile();
 		reparse();
 	}
@@ -342,9 +357,9 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	private void writeSrcFile() throws IOException {
-		Debug.log(3, "IDE: writeSrcFile: " + _editingFile.getName());
+		log(lvl, "writeSrcFile: " + _editingFile.getName());
 		writeFile(_editingFile.getAbsolutePath());
-    if (PreferencesUser.getInstance().getAtSaveMakeHTML()) {
+		if (PreferencesUser.getInstance().getAtSaveMakeHTML()) {
 			convertSrcToHtml(getSrcBundle());
 		} else {
 			String snameDir = new File(_editingFile.getAbsolutePath()).getParentFile().getName();
@@ -358,6 +373,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	private void cleanBundle(String bundle) {
+    log(3, "cleanBundle: for %s", bundle);
+    String pbundle = FileManager.slashify(bundle, false);
+    if (! (new File(pbundle).isDirectory())) {
+      log(-1, "cleanBundle: no directory/folder");
+      return;
+    }
 		String scriptText = getText();
 		Lexer lexer = getLexer();
 		Iterable<Token> tokens = lexer.getTokens(scriptText);
@@ -367,11 +388,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		for (Token t : tokens) {
 			current = t.getValue();
 			if (t.getType() == TokenType.Comment) {
-				cleanBundleCheckComments(lexer, t.getValue().substring(1), usedImages);
+				cleanBundleCheckComments(pbundle, lexer, t.getValue().substring(1), usedImages);
 				continue;
 			}
 			if (t.getType() == TokenType.String_Doc) {
-				cleanBundleCheckComments(lexer, t.getValue().substring(3, t.getValue().length() - 3), usedImages);
+				cleanBundleCheckComments(pbundle, lexer, 
+                t.getValue().substring(3, t.getValue().length() - 3), usedImages);
 				continue;
 			}
 			if (!inString) {
@@ -384,7 +406,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				inString = false;
 				continue;
 			}
-			cleanBundleIsImageUsed(current, usedImages);
+			cleanBundleIsImageUsed(pbundle, current, usedImages);
 		}
 		if (usedImages.isEmpty()) {
 			return;
@@ -392,7 +414,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		FileManager.deleteNotUsedImages(bundle, usedImages);
 	}
 
-	private void cleanBundleCheckComments(Lexer lexer, String comment, List<String> usedImages) {
+	private void cleanBundleCheckComments(String pbundle, Lexer lexer, String comment, List<String> usedImages) {
 		Iterable<Token> tokens = lexer.getTokens(comment);
 		boolean inString = false;
 		String current;
@@ -408,26 +430,32 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				inString = false;
 				continue;
 			}
-			cleanBundleIsImageUsed(current, usedImages);
+			cleanBundleIsImageUsed(pbundle, current, usedImages);
 		}
 	}
 
-	private void cleanBundleIsImageUsed(String img, List<String> usedImages) {
-			if (img.endsWith(".png") || img.endsWith(".jpg") || img.endsWith(".jpeg")) {
-				if (FileManager.slashify(img, false).contains("/")) {
-					Debug.log(3,"IDE: save: used image ignored: %s", img);
-					return;
-				}
-				Debug.log(3,"IDE: save: used image: %s", img);
-				if (!usedImages.contains(img)) {
-					usedImages.add(img);
-				}
+	private void cleanBundleIsImageUsed(String pbundle, String img, List<String> usedImages) {
+    String fimg;
+		if (img.endsWith(".png") || img.endsWith(".jpg") || img.endsWith(".jpeg")) {
+      fimg = FileManager.slashify(img, false);
+			if (fimg.contains("/")) {
+        if (fimg.contains(pbundle)) {
+          img = new File(fimg).getName();
+        } else {
+          log(lvl, "save: used image ignored: %s", img);
+          return;
+        }
 			}
+			log(lvl, "save: used image: %s", img);
+			if (!usedImages.contains(img)) {
+				usedImages.add(img);
+			}
+		}
 	}
 
 	private Lexer getLexer() {
 //TODO this only works for cleanbundle to find the image strings
-    String scriptType = "python";
+		String scriptType = "python";
 		if (null != lexers.get(scriptType)) {
 			return lexers.get(scriptType);
 		}
@@ -456,7 +484,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 		writeFile(getSrcBundle() + srcName + ".py");
 		FileManager.zip(getSrcBundle(), zipPath);
-		Debug.log(2, "export to executable file: " + zipPath);
+		log(lvl, "exportAsZip: " + zipPath);
 		return zipPath;
 	}
 
@@ -543,7 +571,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			try {
 				saveAsFile(Settings.isMac());
 			} catch (IOException e) {
-				Debug.error(me + "getCurrentFile: Problem while trying to save %s\n%s",
+				log(-1, "getCurrentFile: Problem while trying to save %s\n%s",
 								_editingFile.getAbsolutePath(), e.getMessage());
 			}
 		}
@@ -559,8 +587,8 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 //TODO convertSrcToHtml has to be completely revised
 	private void convertSrcToHtml(String bundle) {
-		if (null != SikuliX.getScriptRunner("jython", null, new String[] {"convertSrcToHtml"})) {
-			SikuliX.getScriptRunner("jython", null, null).doSomethingSpecial("convertSrcToHtml",
+		if (null != Sikulix.getScriptRunner("jython", null, new String[]{"convertSrcToHtml"})) {
+			Sikulix.getScriptRunner("jython", null, null).doSomethingSpecial("convertSrcToHtml",
 							new String[]{bundle});
 		}
 	}
@@ -573,7 +601,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				File newFile = FileManager.smartCopy(filename, bundlePath);
 				return newFile;
 			} catch (IOException e) {
-				Debug.error(me + "copyFileToBundle: Problem while trying to save %s\n%s",
+				log(-1,"copyFileToBundle: Problem while trying to save %s\n%s",
 								filename, e.getMessage());
 				return f;
 			}
@@ -629,19 +657,19 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 		@Override
 		public void changedUpdate(DocumentEvent ev) {
-			Debug.log(9, "change update");
+			log(lvl+1, "change update");
 			//setDirty(true);
 		}
 
 		@Override
 		public void insertUpdate(DocumentEvent ev) {
-			Debug.log(9, "insert update");
+			log(lvl+1, "insert update");
 			setDirty(true);
 		}
 
 		@Override
 		public void removeUpdate(DocumentEvent ev) {
-			Debug.log(9, "remove update");
+			log(lvl+1, "remove update");
 			setDirty(true);
 		}
 	}
@@ -688,7 +716,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public boolean jumpTo(int lineNo, int column) {
-		Debug.log(6, "jumpTo: " + lineNo + "," + column);
+		log(lvl+1, "jumpTo pos: " + lineNo + "," + column);
 		try {
 			int off = getLineStartOffset(lineNo - 1) + column - 1;
 			int lineCount = getDocument().getDefaultRootElement().getElementCount();
@@ -709,7 +737,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public boolean jumpTo(int lineNo) {
-		Debug.log(6, "jumpTo: " + lineNo);
+		log(lvl+1, "jumpTo line: " + lineNo);
 		try {
 			setCaretPosition(getLineStartOffset(lineNo - 1));
 		} catch (BadLocationException ex) {
@@ -733,7 +761,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 	//<editor-fold defaultstate="collapsed" desc="TODO only used for UnitTest">
 	public void jumpTo(String funcName) throws BadLocationException {
-		Debug.log(6, "jumpTo: " + funcName);
+		log(lvl+1, "jumpTo function: " + funcName);
 		Element root = getDocument().getDefaultRootElement();
 		int pos = getFunctionStartOffset(funcName, root);
 		if (pos >= 0) {
@@ -775,10 +803,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		if (e.getEndOffset() - e.getStartOffset() == 1) {
 			return true;
 		}
-		if ((temp = reparseBefore()) != null) {
-			if (reparseAfter(temp)) {
-			updateDocumentListeners();
-			return true;
+		temp = reparseBefore();
+		if (temp != null) {
+			boolean result = reparseAfter(temp);
+			if (result) {
+				updateDocumentListeners("reparse");
+				return true;
 			}
 		}
 		return false;
@@ -837,7 +867,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		int count = node.getElementCount();
 		for (int i = 0; i < count; i++) {
 			Element elm = node.getElement(i);
-			Debug.log(8, elm.toString());
+			log(lvl+1, elm.toString());
 			if (elm.isLeaf()) {
 				int start = elm.getStartOffset(), end = elm.getEndOffset();
 				parseRange(start, end);
@@ -858,7 +888,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			end = parseLine(start, end, patRegionStr);
 			end = parseLine(start, end, patPngStr);
 		} catch (BadLocationException e) {
-			Debug.error(me + "parseRange: Problem while trying to parse line\n%s", e.getMessage());
+			log(-1, "parseRange: Problem while trying to parse line\n%s", e.getMessage());
 		}
 		return end;
 	}
@@ -874,7 +904,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			//System.out.println("["+line+"]");
 			if (m.find()) {
 				int len = m.end() - m.start();
-        boolean replaced = replaceWithImage(startOff + m.start(), startOff + m.end(), ptn);
+				boolean replaced = replaceWithImage(startOff + m.start(), startOff + m.end(), ptn);
 				if (replaced) {
 					startOff += m.start() + 1;
 					endOff -= len - 1;
@@ -959,7 +989,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			try {
 				getDocument().remove(sel_start, sel_end - sel_start);
 			} catch (BadLocationException e) {
-				Debug.error(me + "insertString: Problem while trying to insert\n%s", e.getMessage());
+				log(-1, "insertString: Problem while trying to insert\n%s", e.getMessage());
 			}
 		}
 		int pos = getCaretPosition();
@@ -974,7 +1004,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		try {
 			doc.insertString(pos, str, null);
 		} catch (Exception e) {
-			Debug.error(me + "insertString: Problem while trying to insert at pos\n%s", e.getMessage());
+			log(-1, "insertString: Problem while trying to insert at pos\n%s", e.getMessage());
 		}
 	}
 
@@ -987,7 +1017,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			int end = doc.getLength();
 			//end = parseLine(start, end, patHistoryBtnStr);
 		} catch (Exception e) {
-			Debug.error(me + "appendString: Problem while trying to append\n%s", e.getMessage());
+			log(-1, "appendString: Problem while trying to append\n%s", e.getMessage());
 		}
 	}
   //</editor-fold>
@@ -1030,7 +1060,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 		int ret = -1;
 		Document doc = getDocument();
-		Debug.log(9, "search caret: " + pos + ", " + doc.getLength());
+		Debug.log(lvl, "search: %s from %d forward: %s",str,  pos, forward);
 		try {
 			String body;
 			int begin;
@@ -1057,8 +1087,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				}
 			}
 		} catch (BadLocationException e) {
-			Debug.log(7, "search caret: " + pos + ", " + doc.getLength()
-							+ e.getStackTrace());
+			log(-1,"search: did not work:\n" + e.getStackTrace());
 		}
 		return ret;
 	}
@@ -1114,7 +1143,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				try {
 					doc.remove(sel_start, sel_end - sel_start);
 				} catch (BadLocationException e) {
-					Debug.error(me + "exportDone: Problem while trying to remove text\n%s", e.getMessage());
+					log(-1, "MyTransferHandler: exportDone: Problem while trying to remove text\n%s", e.getMessage());
 				}
 			}
 		}
@@ -1139,7 +1168,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				kit.write(writer, doc, sel_start, sel_end - sel_start, _copiedImgs);
 				return new StringSelection(writer.toString());
 			} catch (Exception e) {
-				Debug.error(me + "createTransferable: Problem creating text to copy\n%s", e.getMessage());
+				log(-1, "MyTransferHandler: createTransferable: Problem creating text to copy\n%s", e.getMessage());
 			}
 			return null;
 		}
@@ -1171,12 +1200,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 							String ptnImgName = "\"" + imgName + "\"";
 							newName = "\"" + newName + "\"";
 							transferString = transferString.replaceAll(ptnImgName, newName);
-							Debug.info(ptnImgName + " exists. Rename it to " + newName);
+							Debug.info("MyTransferHandler: importData:" + ptnImgName + " exists. Rename it to " + newName);
 						}
 					}
 					targetTextPane.insertString(transferString);
 				} catch (Exception e) {
-					Debug.error(me + "importData: Problem pasting text\n%s", e.getMessage());
+					log(-1, "MyTransferHandler: importData: Problem pasting text\n%s", e.getMessage());
 				}
 				return true;
 			}

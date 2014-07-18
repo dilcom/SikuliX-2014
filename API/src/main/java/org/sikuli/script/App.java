@@ -41,6 +41,7 @@ public class App {
 
   static {
 //TODO Sikuli hangs if App is used before Screen
+    //System.out.println("[static] App");
     new Screen();
 		String libName = _osUtil.getLibName();
 		if (!libName.isEmpty()) {
@@ -60,7 +61,7 @@ public class App {
 	 * creates an instance for an app with this name
 	 * (nothing done yet)
 	 *
-	 * @param appName
+	 * @param appName name
 	 */
 	public App(String appName) {
     _appName = appName;
@@ -74,7 +75,7 @@ public class App {
 
 	/**
 	 * creates an instance for an app with this name and tries to open it
-	 * @param appName
+	 * @param appName name
 	 * @return the App instance or null on failure
 	 */
 	public static App open(String appName) {
@@ -84,7 +85,7 @@ public class App {
 	/**
 	 * tries to identify a running app with the given name
 	 * and then tries to close it
-	 * @param appName
+	 * @param appName name
 	 * @return 0 for success -1 otherwise
 	 */
 	public static int close(String appName) {
@@ -96,7 +97,7 @@ public class App {
 	 * if not running tries to open it
 	 * and tries to make it the foreground application
 	 * bringing its topmost window to front
-	 * @param appName
+	 * @param appName name
 	 * @return the App instance or null on failure
 	 */
 	public static App focus(String appName) {
@@ -108,8 +109,8 @@ public class App {
 	 * if not running tries to open it
 	 * and tries to make it the foreground application
 	 * bringing its window with the given number to front
-	 * @param appName
-	 * @param num
+	 * @param appName name
+	 * @param num window
 	 * @return the App instance or null on failure
 	 */
   public static App focus(String appName, int num) {
@@ -128,7 +129,7 @@ public class App {
 	/**
 	 * tries to make it the foreground application
 	 * bringing its window with the given number to front
-	 * @param num
+	 * @param num window
 	 * @return the App instance or null on failure
 	 */
   public App focus(int num) {
@@ -224,7 +225,7 @@ public class App {
 	 * by the window with the given number of this App instance.
 	 * The region might not be fully visible, not visible at all
 	 * or invalid with respect to the current monitor configuration (outside any screen)
-	 * @param winNum
+	 * @param winNum window
 	 * @return the region
 	 */
   public Region window(int winNum) {
@@ -263,7 +264,7 @@ public class App {
 
 	/**
 	 * sets the current textual content of the system clipboard to the given text
-	 * @param text
+	 * @param text text
 	 */
 	public static void setClipboard(String text) {
     Clipboard.putText(Clipboard.PLAIN, Clipboard.UTF8,

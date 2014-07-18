@@ -9,4 +9,5 @@ stuff/
 *.o.d
 *.a
 *.def
-opencv/
+opencvsrc/
+

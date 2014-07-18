@@ -1,6 +1,5 @@
-<?xml version="1.0"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-				 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
 	<!--
 	* Copyright 2010-2013, Sikuli.org
@@ -11,9 +10,9 @@
 
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>org.sikuli</groupId>
-	<artifactId>SikuliX-Project</artifactId>
-	<version>1.1.0</version>
+	<groupId>com.sikulix</groupId>
+	<artifactId>SikuliX-2014</artifactId>
+	<version>1.1.0-Beta4-SNAPSHOT</version>
 
 	<packaging>pom</packaging>
 
@@ -44,7 +43,7 @@
 		<sikulixvmaj>1</sikulixvmaj>
 		<sikulixvmin>1</sikulixvmin>
 		<sikulixvsub>0</sikulixvsub>
-		<sikulixbeta>3</sikulixbeta>
+		<sikulixbeta>4</sikulixbeta>
 		<!--   this decides, where setup downloads from   -->
 <!--		<sikulixdev>release</sikulixdev>-->
 		<sikulixdev>development</sikulixdev>
@@ -58,7 +57,7 @@
 	</properties>
 
 	<repositories>
-		<repository> <!-- needed for jxgrabkey -->
+		<repository>  <!-- com.sikulix.sikulixapi: jxgrabkey -->
 			<id>uni-due.de</id>
 			<name>uni-due.de</name>
 			<url>http://mvn.is.inf.uni-due.de:8081/nexus/content/repositories/atunes-dependencies/</url>
@@ -72,8 +71,8 @@
 				<updatePolicy>never</updatePolicy>
 			</snapshots>
 		</repository>
-		<repository>
-			<releases />
+		<repository> <!-- Tesseract4SikuliX: java/dev/jai-imageio/jai-imageio-core-standalone/1.2 -->
+			<releases/>
 			<snapshots>
 				<enabled>false</enabled>
 			</snapshots>
@@ -97,9 +96,9 @@
 				</dependency>
 		-->
 		<dependency>
-			<groupId>org.testng</groupId>
-			<artifactId>testng</artifactId>
-			<version>6.8.7</version>
+			<groupId>junit</groupId>
+			<artifactId>junit</artifactId>
+			<version>4.10</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -161,9 +160,9 @@
 			</properties>
 			<dependencies>
 				<dependency>
-					<groupId>org.sikuli</groupId>
-					<artifactId>SikuliX-Libs</artifactId>
-					<version>1.1.0</version>
+					<groupId>com.sikulix</groupId>
+					<artifactId>sikulixlibs</artifactId>
+					<version>${project.version}</version>
 				</dependency>
 			</dependencies>
 		</profile>
@@ -177,9 +176,9 @@
 			</properties>
 			<dependencies>
 				<dependency>
-					<groupId>org.sikuli</groupId>
-					<artifactId>SikuliX-Tesseract</artifactId>
-					<version>1.1.0</version>
+					<groupId>com.sikulix</groupId>
+					<artifactId>sikulixtessdata</artifactId>
+					<version>${project.version}</version>
 				</dependency>
 			</dependencies>
 		</profile>
@@ -214,7 +213,7 @@
 				<plugins>
 					<plugin>
 						<artifactId>maven-source-plugin</artifactId>
-						<version>2.2.1</version>
+						<version>2.3</version>
 						<executions>
 							<execution>
 								<id>attach-sources</id>
@@ -231,27 +230,25 @@
 	</profiles>
 
 	<modules>
-		<module>Jygments4SikuliX</module>
-		<module>OpenCV4SikuliX</module>
-		<module>Tesseract4SikuliX</module>
 		<module>Libs</module>
-		<module>Natives</module>
-		<module>Basics</module>
-		<module>Setup</module>
+		<module>API</module>
 		<module>Jython</module>
 		<module>JythonFat</module>
 		<module>JRuby</module>
 		<module>JRubyFat</module>
 		<module>JRubyGem</module>
-		<module>API</module>
-		<module>APIFat</module>
+		<module>Jygments4SikuliX</module>
 		<module>IDE</module>
+		<module>Setup</module>
 		<module>IDEFat</module>
+		<module>APIFat</module>
+		<module>APIFatReady</module>
 		<module>MacApp</module>
 		<module>Tesseract</module>
+		<module>Tesseract4SikuliX</module>
 		<module>Remote</module>
 		<module>Guide</module>
-	</modules>
+  </modules>
 
 	<build>
 		<plugins>

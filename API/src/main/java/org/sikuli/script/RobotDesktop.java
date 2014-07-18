@@ -6,6 +6,9 @@
  */
 package org.sikuli.script;
 
+import org.sikuli.basics.Animator;
+import org.sikuli.basics.AnimatorOutQuarticEase;
+import org.sikuli.basics.AnimatorTimeBased;
 import org.sikuli.basics.Settings;
 import org.sikuli.basics.Debug;
 import java.awt.AWTException;
@@ -47,7 +50,7 @@ public class RobotDesktop extends Robot implements IRobot {
 
   @Override
   public void smoothMove(Location dest) {
-    smoothMove(Region.atMouse(), dest, (long) (Settings.MoveMouseDelay * 1000L));
+    smoothMove(Mouse.at(), dest, (long) (Settings.MoveMouseDelay * 1000L));
   }
 
   @Override
@@ -55,32 +58,34 @@ public class RobotDesktop extends Robot implements IRobot {
     Debug.log(4, "RobotDesktop: smoothMove (%.1f): " + src.toString() + "---" + dest.toString(), Settings.MoveMouseDelay);
     if (ms == 0) {
       Screen.getMouseRobot().mouseMove(dest.x, dest.y);
-      checkMousePos(dest);
+      checkMousePosition(dest);
       return;
     }
-    OverlayAnimator aniX = new TimeBasedAnimator(
-            new OutQuarticEase(src.x, dest.x, ms));
-    OverlayAnimator aniY = new TimeBasedAnimator(
-            new OutQuarticEase(src.y, dest.y, ms));
+    Animator aniX = new AnimatorTimeBased(
+            new AnimatorOutQuarticEase(src.x, dest.x, ms));
+    Animator aniY = new AnimatorTimeBased(
+            new AnimatorOutQuarticEase(src.y, dest.y, ms));
     float x = 0, y = 0;
     while (aniX.running()) {
       x = aniX.step();
       y = aniY.step();
       Screen.getMouseRobot().mouseMove((int) x, (int) y);
     }
-    checkMousePos(new Location((int) x, (int) y));
+    checkMousePosition(new Location((int) x, (int) y));
   }
 
-  private void checkMousePos(Location p) {
+  private void checkMousePosition(Location p) {
     PointerInfo mp = MouseInfo.getPointerInfo();
     Point pc;
     if (mp == null) {
-      Debug.error("RobotDesktop: MouseInfo.getPointerInfo invalid\nafter mouseMove to %s", p);
+      Debug.error("RobotDesktop: checkMousePosition: MouseInfo.getPointerInfo invalid\nafter move to %s", p);
     } else {
       pc = mp.getLocation();
       if (pc.x != p.x || pc.y != p.y) {
-        Debug.error("RobotDesktop: MouseInfo.getPointerInfo.getLocation %s\nafter mouseMove to %s",
-                new Location(pc), p);
+        Debug.error("RobotDesktop: checkMousePosition: should be %s\nbut after move is %s"
+								+ "\nPossible cause: Mouse actions are blocked generally or by the frontmost application."
+								+ (Settings.isWindows() ? "\nYou might try to run the SikuliX stuff as admin." : ""),
+                p, new Location(pc));
       }
     }
   }
@@ -94,7 +99,8 @@ public class RobotDesktop extends Robot implements IRobot {
       heldButtons = buttons;
     }
     Screen.getMouseRobot().mousePress(heldButtons);
-    Screen.getMouseRobot().waitForIdle();
+//TODO check: does this produce Robot locked situations?
+//    Screen.getMouseRobot().waitForIdle();
   }
 
   @Override
@@ -197,7 +203,6 @@ public class RobotDesktop extends Robot implements IRobot {
           heldKeys += keys.charAt(i);
         }
       }
-      waitForIdle();
     }
   }
 
@@ -207,7 +212,6 @@ public class RobotDesktop extends Robot implements IRobot {
       keyPress(code);
       heldKeyCodes.add(code);
     }
-    waitForIdle();
   }
 
   @Override
@@ -296,6 +300,7 @@ public class RobotDesktop extends Robot implements IRobot {
       }
     }
     doType(KeyMode.PRESS_RELEASE, key);
+    waitForIdle();
   }
 
   @Override

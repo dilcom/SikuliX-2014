@@ -1,6 +1,0 @@
-sikulixvmaj=${sikulixvmaj}
-sikulixvmin=${sikulixvmin}
-sikulixvsub=${sikulixvsub}
-sikulixbeta=${sikulixbeta}
-sikulixbuild=${timestamp}
-sikulixdev=${sikulixdev}
