@@ -41,7 +41,9 @@ public class ExtensionManagerFrame extends JFrame {
 
   static public ExtensionManagerFrame getInstance() {
     if (_instance == null) {
-      _instance = new ExtensionManagerFrame();
+//TODO reactivate extension manager
+      _instance = null;
+//      _instance = new ExtensionManagerFrame();
     }
     return _instance;
   }
@@ -204,9 +206,9 @@ public class ExtensionManagerFrame extends JFrame {
     }
   }
 
-  public static void main(String[] args) throws IOException {
-
-    ExtensionManagerFrame f = ExtensionManagerFrame.getInstance();
-    f.setVisible(true);
-  }
+//  public static void main(String[] args) throws IOException {
+//
+//    ExtensionManagerFrame f = ExtensionManagerFrame.getInstance();
+//    f.setVisible(true);
+//  }
 }

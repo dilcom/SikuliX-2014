@@ -12,15 +12,15 @@
 	<parent>
 		<groupId>com.sikulix</groupId>
 		<artifactId>SikuliX-2014</artifactId>
-		<version>1.1.0-Beta4-SNAPSHOT</version>
+		<version>1.1.0-Beta4</version>
 		<relativePath>../</relativePath>
 	</parent>
 
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.sikulix</groupId>
-  <artifactId>sikulixFat</artifactId>
-  <version>1.1.0-Beta4-SNAPSHOT</version>
+  <artifactId>sikulix-complete</artifactId>
+  <version>1.1.0-Beta4</version>
 
   <dependencies>
     <dependency>
@@ -68,9 +68,9 @@
             </manifest>
           </archive>
 					<descriptors>
-						<descriptor>../ide-fat.xml</descriptor>
+						<descriptor>../${sikuli.helpers}/ide-fat.xml</descriptor>
 					</descriptors>
-					<finalName>${sikuli.usedversion}-1</finalName>
+					<finalName>sikulix-complete-${project.version}</finalName>
 				</configuration>
 				<executions>
 					<execution>

@@ -59,6 +59,42 @@
 		</repository>
 	</repositories>
 
+	<profiles>
+		<profile>
+			<id>Windows</id>
+			<activation>
+				<os>
+					<family>windows</family>
+				</os>
+			</activation>
+			<properties>
+				<sikulix.libs>sikulixlibswin</sikulix.libs>
+			</properties>
+		</profile>
+		<profile>
+			<id>Unix</id>
+			<activation>
+				<os>
+					<family>unix</family>
+				</os>
+			</activation>
+			<properties>
+				<sikulix.libs>sikulixlibslux</sikulix.libs>
+			</properties>
+		</profile>
+		<profile>
+			<id>Mac</id>
+			<activation>
+				<os>
+					<family>mac</family>
+				</os>
+			</activation>
+			<properties>
+				<sikulix.libs>sikulixlibsmac</sikulix.libs>
+			</properties>
+		</profile>
+	</profiles>
+
 	<dependencies>
 		<dependency>
 			<groupId>commons-cli</groupId>
@@ -97,8 +133,8 @@
 		</dependency>
 		<dependency>
 			<groupId>com.sikulix</groupId>
-			<artifactId>sikulixlibs</artifactId>
-			<version>1.1.0-Beta4-SNAPSHOT</version>
+			<artifactId>${sikulix.libs}</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>junit</groupId>
@@ -110,15 +146,9 @@
 
 	<distributionManagement>
 		<repository>
-			<id>sikulix.releases</id>
-			<url>file:/Users/Shared/Jenkins/Home/workspace/SikuliX-DeployAPI/mavenrepo</url>
+			<id>sikulix.deploy</id>
+			<url>${sikulix.deploy.target}</url>
 		</repository>
-
-		<!--
-		<repository>
-				<id>sonatype.releases</id>
-				<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-		</repository> -->
 	</distributionManagement>
 
 	<properties>
@@ -192,6 +222,20 @@
 						<phase>verify</phase>
 						<goals>
 							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-gpg-plugin</artifactId>
+				<version>1.5</version>
+				<executions>
+					<execution>
+						<id>sign-artifacts</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>sign</goal>
 						</goals>
 					</execution>
 				</executions>

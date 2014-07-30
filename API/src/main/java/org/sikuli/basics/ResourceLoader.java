@@ -1,8 +1,8 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
- * modified RaiMan 2012
+ * modified RaiMan 2014
  */
 package org.sikuli.basics;
 
@@ -24,7 +24,10 @@ import java.util.StringTokenizer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-public class ResourceLoader implements IResourceLoader {
+public class ResourceLoader {
+//implements IResourceLoader {
+
+  private static ResourceLoader resourceLoader = null;
 
   //<editor-fold defaultstate="collapsed" desc="new logging concept">
   private String me = "ResourceLoader";
@@ -40,7 +43,7 @@ public class ResourceLoader implements IResourceLoader {
   }
   //</editor-fold>
 
-  private String loaderName = "basic";
+  private final String loaderName = "basic";
   private static final String NL = String.format("%n");
   private StringBuffer alreadyLoaded = new StringBuffer("");
   private ClassLoader cl;
@@ -59,40 +62,44 @@ public class ResourceLoader implements IResourceLoader {
   private String libPathFallBack = null;
   private File libsDir = null;
   private static final String checkFileNameAll = Settings.getVersionShortBasic() + "-MadeForSikuliX";
-  private String checkFileNameMac = checkFileNameAll + "64M.txt";
-  private String checkFileNameW32 = checkFileNameAll + "32W.txt";
-  private String checkFileNameW64 = checkFileNameAll + "64W.txt";
-  private String checkFileNameL32 = checkFileNameAll + "32L.txt";
-  private String checkFileNameL64 = checkFileNameAll + "64L.txt";
+  private final String checkFileNameMac = checkFileNameAll + "64M.txt";
+  private final String checkFileNameW32 = checkFileNameAll + "32W.txt";
+  private final String checkFileNameW64 = checkFileNameAll + "64W.txt";
+  private final String checkFileNameL32 = checkFileNameAll + "32L.txt";
+  private final String checkFileNameL64 = checkFileNameAll + "64L.txt";
   private String checkFileName = null;
   private String checkLib = null;
   private final String checkLibWindows = "JIntellitype";
   private static final String prefixSikuli = "SikuliX";
-  private static final String suffixLibs = "/libs";
-  private static final String libSub = prefixSikuli + suffixLibs;
+  private static final String suffixLibs = "libs";
+  private static final String libSub = prefixSikuli + "/" + suffixLibs;
   private String userSikuli = null;
-  private boolean extractingFromJar = false;
+  public boolean extractingFromJar = false;
+  private boolean runningSikulixapi = false;
   private static boolean itIsJython = false;
   /**
    * Mac: standard place for native libs
    */
-  private static String libPathMac = Settings.appPathMac + "/libs";
+  private static final String libPathMac = Settings.appPathMac + "/libs";
   /**
    * in-jar folder to load other ressources from
    */
-  private static String jarResources = "META-INF/res/";
+  private static final String jarResources = "META-INF/res/";
   /**
    * in-jar folder to load native libs from
    */
   private static final String libSourcebase = "META-INF/libs/";
-  private static String libSource32 = libSourcebase + "%s/libs32/";
-  private static String libSource64 = libSourcebase + "%s/libs64/";
+  private static final String libSource32 = libSourcebase + "%s/libs32/";
+  private static final String libSource64 = libSourcebase + "%s/libs64/";
   private String libSource;
 
   private String osarch;
   private String javahome;
 
-  public ResourceLoader() {
+	private boolean initDone = false;
+	private boolean usrPathProblem = false;
+
+  private ResourceLoader() {
     log0(lvl, "SikuliX Package Build: %s %s", Settings.getVersionShort(), Settings.SikuliVersionBuild);
     cl = this.getClass().getClassLoader();
     codeSrc = this.getClass().getProtectionDomain().getCodeSource();
@@ -101,7 +108,12 @@ public class ResourceLoader implements IResourceLoader {
       jarPath = jarURL.getPath();
       jarParentPath = FileManager.slashify((new File(jarPath)).getParent(), true);
       if (jarPath.endsWith(".jar")) {
+//TODO evaluation of running situation should be put in one place
         extractingFromJar = true;
+        if (jarPath.contains("sikulixapi")) {
+          runningSikulixapi = true;
+          org.sikuli.script.Sikulix.setRunningSikulixapi(true);
+        }
       } else {
         jarPath = FileManager.slashify((new File(jarPath)).getAbsolutePath(), true);
       }
@@ -117,13 +129,16 @@ public class ResourceLoader implements IResourceLoader {
     }
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public void init(String[] args) {
-    //Debug.log(lvl, "%s: %s: init", me, loaderName);
+  public static ResourceLoader get() {
+    if (resourceLoader == null) {
+      resourceLoader = new ResourceLoader();
+    }
+    return resourceLoader;
   }
+
+//  public void init(String[] args) {
+//    //Debug.log(lvl, "%s: %s: init", me, loaderName);
+//  }
 
   private boolean isFatJar() {
     if (extractingFromJar) {
@@ -145,14 +160,18 @@ public class ResourceLoader implements IResourceLoader {
 
   /**
    * {@inheritDoc}
+   * @param what check type
    */
-  @Override
-  public void check(String what) {
+  public boolean check(String what) {
     mem = "check";
 
     if (!what.equals(Settings.SIKULI_LIB)) {
       log(-1, "Currently only Sikuli libs supported!");
-      return;
+      return false;
+    }
+
+		if (initDone) {
+      return true;
     }
 
     if (libPath == null || libsDir == null) {
@@ -161,23 +180,47 @@ public class ResourceLoader implements IResourceLoader {
       File libsfolder;
       String libspath;
 
-      if (System.getProperty("sikuli.DoNotExport") == null && !isFatJar()) {
-        libsURL = null;
-        if (jarPath.contains("API")) {
-          try {
-            log(-1, "The jar in use was not built with setup!\n"
-                    + "We might be running from local Maven repository?\n" + jarPath);
-            Sikulix.addToClasspath(jarPath.replace("API", "Libs"));
-            libsURL = new URL(jarURL.toString().replace("API", "Libs"));
-            tessURL = new URL(jarURL.toString().replace("API", "Tesseract"));
-          } catch (Exception ex) {
-          }
-        }
-        if (libsURL == null) {
-          RunSetup.popError("Terminating: The jar in use was not built with setup!\n" + jarPath);
-          System.exit(1);
-        }
-      }
+			if (System.getProperty("sikuli.DoNotExport") == null && !isFatJar()) {
+				libsURL = null;
+//TODO evaluation of running situation should be put in one place
+				String jarName = "";
+				String libsJarName = "";
+				String tessJarName = "";
+				if (jarPath.contains("API")) {
+					log(-1, "The jar in use was not built with setup!\n"
+									+ "We might be running from local Maven repository?\n" + jarPath);
+					jarName = "API";
+					libsJarName = "Libs" + Settings.getShortOS();
+					tessJarName = "Tesseract";
+				}
+				if (runningSikulixapi) {
+					log(3, "The jar in use is some sikulixapi.jar\n%s", jarPath);
+					libsJarName = "sikulixlibs" + Settings.getShortOS();
+					jarName = "sikulixapi";
+					tessJarName = "sikulixtessdata";
+				}
+				if (!jarName.isEmpty()) {
+					try {
+						libsURL = new URL(jarURL.toString().replace(jarName, libsJarName));
+						if (!Sikulix.addToClasspath(libsURL.getPath()) ||
+										!org.sikuli.script.Sikulix.isOnClasspath(libsJarName)) {
+							libsURL = null;
+						}
+						tessURL = new URL(jarURL.toString().replace(jarName, tessJarName));
+						if (!Sikulix.addToClasspath(tessURL.getPath()) ||
+										!org.sikuli.script.Sikulix.isOnClasspath(tessJarName)) {
+							tessURL = null;
+						}
+					} catch (Exception ex) {
+						log(-1, "\n%s", ex);
+					}
+				}
+				if (libsURL == null) {
+					popError("Terminating: The jar was not built with setup nor "
+									+ "can the libs be exported from classpath!\n" + jarPath);
+					System.exit(1);
+				}
+			}
 
       // check the bit-arch
       osarch = System.getProperty("os.arch");
@@ -204,7 +247,7 @@ public class ResourceLoader implements IResourceLoader {
         }
         libSource = String.format(libSource64, "mac");
         checkFileName = checkFileNameMac;
-        checkLib = "MacUtil";
+        checkLib = "VisionProxy";
 //TODO libs dir fallback
 //        if ((new File(libPathMac)).exists()) {
 //          libPathFallBack = libPathMac;
@@ -230,7 +273,7 @@ public class ResourceLoader implements IResourceLoader {
 //            libPathFallBack = libPathWin32;
 //          }
         }
-        checkLib = "WinUtil";
+        checkLib = "VisionProxy";
       }
 
       // Linux specific
@@ -242,7 +285,7 @@ public class ResourceLoader implements IResourceLoader {
           libSource = String.format(libSource32, "linux");
           checkFileName = checkFileNameL32;
         }
-        checkLib = "JXGrabKey";
+        checkLib = "VisionProxy";
       }
 
       if (!Settings.runningSetup) {
@@ -268,31 +311,39 @@ public class ResourceLoader implements IResourceLoader {
 
         // check parent folder of jar file
         if (libPath == null && jarPath != null) {
-          if (jarPath.endsWith(".jar")) {
-            if (libsURL == null) {
-              String lfp = jarParentPath + "libs";
-              libsfolder = (new File(lfp));
-              if (libsfolder.exists()) {
-                libPath = lfp;
-              }
+          if (extractingFromJar) {
+            if (libsURL == null || runningSikulixapi) {
               if (Settings.isMacApp) {
-                libPath = libPathMac;
-              }
+                libsfolder = new File(libPathMac);
+							} else {
+								libsfolder = (new File(jarParentPath, "libs"));
+							}
+							if (libsfolder.exists()) {
+									libPath = libsfolder.getAbsolutePath();
+							} else if (runningSikulixapi) {
+								if (!libsfolder.mkdirs()) {
+									log(-1,"running some sikulixapi.jar: cannot create libs folder in\n%s", jarParentPath);
+								} else {
+									libPath = libsfolder.getAbsolutePath();
+								}
+							}
               log(lvl, "Exists libs folder at location of jar? %s: %s", libPath == null ? "NO" : "YES", jarParentPath);
               libsDir = checkLibsDir(libPath);
-              if (libsDir == null && System.getProperty("sikuli.DoNotExport") != null) {
-                log(-1, "No valid libs folder with option sikuli.DoNotExport");
-                System.exit(1);
-              }
-            }
+							if (libsDir == null) {
+								if (System.getProperty("sikuli.DoNotExport") != null) {
+									log(-1, "No valid libs folder with option sikuli.DoNotExport");
+									System.exit(1);
+								}
+							}
+           }
           } else {
             log(lvl, "not running from jar: " + jarParentPath);
           }
         }
 
         // check the users home folder
-        if (libPath == null && userSikuli != null) {
-          File ud = new File(userSikuli + suffixLibs);
+        if (!Settings.runningSetup && !runningSikulixapi && libPath == null && userSikuli != null) {
+          File ud = new File(userSikuli , suffixLibs);
           if (ud.exists()) {
             libPath = ud.getAbsolutePath();
           }
@@ -302,7 +353,7 @@ public class ResourceLoader implements IResourceLoader {
         }
 
         // check the working directory and its parent
-        if (libPath == null && userdir != null) {
+        if (!Settings.runningSetup && !runningSikulixapi && libPath == null && userdir != null) {
           File wd = new File(userdir);
           File wdpl = null;
           File wdp = new File(userdir).getParentFile();
@@ -320,13 +371,15 @@ public class ResourceLoader implements IResourceLoader {
           libsDir = checkLibsDir(libPath);
         }
 
-        if (libPath == null && libPathFallBack != null) {
+        if (!Settings.runningSetup && !runningSikulixapi && libPath == null && libPathFallBack != null) {
           libPath = libPathFallBack;
           log(lvl, "Checking available fallback for libs folder: " + libPath);
           libsDir = checkLibsDir(libPath);
         }
       }
     }
+
+    initDone = true;
 
     if (libsDir == null && libPath != null) {
       log(lvl, "libs dir is empty, has wrong content or is outdated");
@@ -335,15 +388,14 @@ public class ResourceLoader implements IResourceLoader {
               new FileManager.fileFilter() {
                 @Override
                 public boolean accept(File entry) {
-                  if (entry.getPath().contains("tessdata")
-                  || entry.getPath().contains("Lib")) {
+                  if (entry.getPath().contains("tessdata")) {
                     return false;
                   }
                   return true;
                 }
               })) {
         log(-1, "Fatal Error 102: not possible to empty libs dir");
-        RunSetup.popError("Problem with SikuliX libs folder - see error log");
+        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(102);
       }
       File dir = (new File(libPath));
@@ -351,14 +403,17 @@ public class ResourceLoader implements IResourceLoader {
       if (extractLibs(dir.getParent(), libSource) == null) {
         log(-1, "... not possible!");
         libPath = null;
+        initDone = false;
+      } else {
+        libsDir = checkLibsDir(libPath);
       }
-      libsDir = checkLibsDir(libPath);
     }
 
     //<editor-fold defaultstate="collapsed" desc="libs dir finally invalid">
     if (libPath == null) {
       log(-1, "No valid libs path available until now!");
-      if (libPath == null && jarParentPath != null) {
+
+			if (libPath == null && jarParentPath != null) {
         if (jarPath.endsWith(".jar") && libsURL == null) {
           log(-2, "Please wait! Trying to extract libs to jar parent folder: " + jarParentPath);
           File jarPathLibs = extractLibs((new File(jarParentPath)).getAbsolutePath(), libSource);
@@ -381,7 +436,7 @@ public class ResourceLoader implements IResourceLoader {
       libsDir = checkLibsDir(libPath);
       if (libPath == null || libsDir == null) {
         log(-1, "Fatal Error 103: No valid native libraries folder available - giving up!");
-        RunSetup.popError("Problem with SikuliX libs folder - see error log");
+        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(103);
       }
     }
@@ -396,7 +451,7 @@ public class ResourceLoader implements IResourceLoader {
                   new File(libPath, "libVisionProxy.so").getAbsolutePath(), null);
         } catch (IOException ex) {
           log(-1, "... did not work: " + ex.getMessage());
-          RunSetup.popError("Provided libVisionProxy not useable - see error log");
+          popError("Provided libVisionProxy not useable - see error log");
           Sikulix.terminate(0);
         }
       }
@@ -414,54 +469,60 @@ public class ResourceLoader implements IResourceLoader {
         Settings.OcrDataPath = "/usr/local/share";
       }
     }
-
-    if (Settings.isWindows() && libPath != null) {
-      log(lvl, "checking ClassLoader.usrPaths having: %s", libPath);
-      Field usrPathsField = null;
-      try {
-        usrPathsField = ClassLoader.class.getDeclaredField("usr_paths");
-      } catch (NoSuchFieldException ex) {
-        log(-1, ex.getMessage());
-      } catch (SecurityException ex) {
-        log(-1, ex.getMessage());
-      }
-      boolean contained = false;
-      if (usrPathsField != null) {
-        usrPathsField.setAccessible(true);
-        try {
-          //get array of paths
-          String[] javapaths = (String[]) usrPathsField.get(null);
-          //check if the path to add is already present
-          for (String p : javapaths) {
-            if (p.toUpperCase().equals(libPath.toUpperCase())) {
-              contained = true;
-              break;
-            }
-          }
-          //add the new path
-          if (!contained) {
-            final String[] newPaths = Arrays.copyOf(javapaths, javapaths.length + 1);
-            newPaths[newPaths.length - 1] = libPath;
-            usrPathsField.set(null, newPaths);
-            log(lvl, "added to ClassLoader.usrPaths");
-          }
-        } catch (IllegalAccessException ex) {
-          log(-1, ex.getMessage());
-        } catch (IllegalArgumentException ex) {
-          log(-1, ex.getMessage());
-        }
-        //check the new path
-        if (!contained) {
-          try {
-            System.loadLibrary(checkLibWindows);
-          } catch (java.lang.UnsatisfiedLinkError ex) {
-            log(-1, "adding to ClassLoader.usrPaths did not work:\n" + ex.getMessage());
-            System.exit(1);
-          }
-        }
-      }
-    }
+		initDone = true;
+    return libsDir != null;
   }
+
+	private boolean checkJavaUsrPath() {
+		if (Settings.isWindows() && libPath != null) {
+			log(lvl, "checking ClassLoader.usrPaths having: %s", libPath);
+			Field usrPathsField = null;
+			try {
+				usrPathsField = ClassLoader.class.getDeclaredField("usr_paths");
+			} catch (NoSuchFieldException ex) {
+				log(-1, ex.getMessage());
+			} catch (SecurityException ex) {
+				log(-1, ex.getMessage());
+			}
+			boolean contained = false;
+			if (usrPathsField != null) {
+				usrPathsField.setAccessible(true);
+				try {
+					//get array of paths
+					String[] javapaths = (String[]) usrPathsField.get(null);
+					//check if the path to add is already present
+					for (String p : javapaths) {
+						if (FileManager.pathEquals(p, libPath)) {
+							contained = true;
+							break;
+						}
+					}
+					//add the new path
+					if (!contained) {
+						final String[] newPaths = Arrays.copyOf(javapaths, javapaths.length + 1);
+						newPaths[newPaths.length - 1] = libPath;
+						usrPathsField.set(null, newPaths);
+						log(lvl, "added to ClassLoader.usrPaths");
+					}
+				} catch (IllegalAccessException ex) {
+					log(-1, ex.getMessage());
+				} catch (IllegalArgumentException ex) {
+					log(-1, ex.getMessage());
+				}
+				return true;
+//				//check the new path
+//				if (!contained) {
+//					try {
+//						System.loadLibrary(checkLibWindows);
+//					} catch (java.lang.UnsatisfiedLinkError ex) {
+//						log(-1, "adding to ClassLoader.usrPaths did not work:\n" + ex.getMessage());
+//						System.exit(1);
+//					}
+//				}
+			}
+		}
+		return false;
+	}
 
   private File checkLibsDir(String path) {
     String memx = mem;
@@ -469,7 +530,7 @@ public class ResourceLoader implements IResourceLoader {
     File dir = null;
     if (path != null) {
       log(lvl, "trying: " + path);
-      if (Settings.isWindows()) {
+      if (Settings.isWindows() && !initDone) {
         log(lvl, "Running on Windows - checking system path!");
         String syspath = SysJNA.WinKernel32.getEnvironmentVariable("PATH");
         if (syspath == null) {
@@ -486,9 +547,12 @@ public class ResourceLoader implements IResourceLoader {
               log(-1, "Adding to path did not work:\n%s", syspath);
               System.exit(1);
             }
-            log(lvl, syspath);
+            log(lvl, syspath.substring(0, Math.min(path.length()+50, syspath.length())) + "...");
           }
         }
+				if (!checkJavaUsrPath()) {
+					usrPathProblem = true;
+				}
       }
       if (System.getProperty("sikuli.DoNotExport") != null) {
         dir = new File(path);
@@ -506,7 +570,7 @@ public class ResourceLoader implements IResourceLoader {
                 log(lvl + 1, "copied to libs: jawt.dll");
               } catch (IOException ex) {
                 log(-1, "Fatal error 107: problem copying " + lib + "\n" + ex.getMessage());
-                RunSetup.popError("Trying to add jawt.dll from Java at\n"
+                popError("Trying to add jawt.dll from Java at\n"
                         + javahome + " to SikuliX libs folder ..."
                         + "... but did not work - see error log");
                 Sikulix.terminate(107);
@@ -536,8 +600,10 @@ public class ResourceLoader implements IResourceLoader {
   //<editor-fold defaultstate="collapsed" desc="overwritten">
   /**
    * {@inheritDoc}
+   * @param res what to export
+   * @param target target folder
+   * @return success
    */
-  @Override
   public boolean export(String res, String target) {
     String memx = mem;
     mem = "export";
@@ -602,50 +668,54 @@ public class ResourceLoader implements IResourceLoader {
 
   /**
    * {@inheritDoc}
+   * @param args what to do
    */
-  @Override
-  public void install(String[] args) {
-    mem = "install";
-    log(lvl, "entered");
-    //extractLibs(args[0]);
+//  public void install(String[] args) {
+//    mem = "install";
+//    log(lvl, "entered");
+//    //extractLibs(args[0]);
+//  }
+
+//  public boolean doSomethingSpecial(String action, Object[] args) {
+//    if ("loadLib".equals(action)) {
+//      loadLib((String) args[0]);
+//      return true;
+//    } else if ("runcmd".equals(action)) {
+//      String retval = runcmd((String[]) args);
+//      args[0] = retval;
+//      return true;
+//    } else if ("checkLibsDir".equals(action)) {
+//      return (libsDir != null);
+//    } else if ("exportTessdata".equals(action)) {
+//      return true;
+//    } else {
+//      return false;
+//    }
+//  }
+
+  public void setItIsJython() {
+      itIsJython = true;
   }
 
-  /**
-   * {@inheritDoc}
-   */
-  @Override
-  public boolean doSomethingSpecial(String action, Object[] args) {
-    if ("loadLib".equals(action)) {
-      loadLib((String) args[0]);
-      return true;
-    } else if ("runcmd".equals(action)) {
-      String retval = runcmd((String[]) args);
-      args[0] = retval;
-      return true;
-    } else if ("checkLibsDir".equals(action)) {
-      return (libsDir != null);
-    } else if ("itIsJython".equals(action)) {
-      itIsJython = true;
-      return true;
-    } else if ("exportTessdata".equals(action)) {
-      if (tessURL != null) {
-        Sikulix.addToClasspath(jarPath.replace("Basics", "Tesseract"));
-      }
-      if (!new File(Settings.OcrDataPath, "tessdata").exists()) {
-        log(lvl, "Trying to extract tessdata folder since it does not exist yet.");
-        export("META-INF/libs#tessdata", libPath);
-      }
-      return true;
-    } else {
-      return false;
+  public void exportTessdata(boolean overwrite) {
+    if (tessURL == null) {
+      log(-1, "exportTessdata: no valid Tessdata.jar available");
+    }
+    if (overwrite) {
+
+    }
+    if (!new File(Settings.OcrDataPath, "tessdata").exists()) {
+      log(lvl, "Trying to extract tessdata folder since it does not exist yet.");
+      export("META-INF/libs#tessdata", libPath);
     }
   }
 
-  private String runcmd(String cmd) {
+
+  public String runcmd(String cmd) {
     return runcmd(new String[]{cmd});
   }
 
-  private String runcmd(String args[]) {
+  public String runcmd(String args[]) {
     if (args.length == 0) {
       return "";
     }
@@ -715,18 +785,16 @@ public class ResourceLoader implements IResourceLoader {
   /**
    * {@inheritDoc}
    */
-  @Override
-  public String getName() {
-    return loaderName;
-  }
+//  public String getName() {
+//    return loaderName;
+//  }
 
   /**
    * {@inheritDoc}
    */
-  @Override
-  public String getResourceTypes() {
-    return Settings.SIKULI_LIB;
-  }
+//  public String getResourceTypes() {
+//    return Settings.SIKULI_LIB;
+//  }
 
   /**
    * make sure, a native library is available and loaded
@@ -751,7 +819,7 @@ public class ResourceLoader implements IResourceLoader {
     log(lvl + 1, libname);
     if (libPath == null) {
       log(-1, "Fatal Error 108: No libs directory available");
-      RunSetup.popError("Problem with SikuliX libs folder - see error log");
+      popError("Problem with SikuliX libs folder - see error log");
       Sikulix.terminate(108);
     }
     String mappedlib = System.mapLibraryName(libname);
@@ -764,11 +832,11 @@ public class ResourceLoader implements IResourceLoader {
     if (!new File(lib).exists()) {
       if (!Settings.isLinux()) {
         log(-1, "Fatal Error 109: not found: " + lib);
-        RunSetup.popError("Problem with SikuliX libs folder - see error log");
+        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(109);
       } else {
         lib = mappedlib;
-        log(lvl, "Linux: %s not bundled - trying to load from system paths", lib);
+        log(lvl, "Linux: %s \nnot bundled - trying to load from system paths", lib);
       }
     } else {
       log(lvl + 1, "Found: " + libname + " at " + lib);
@@ -777,8 +845,8 @@ public class ResourceLoader implements IResourceLoader {
       System.load(lib);
     } catch (Error e) {
       log(-1, "Fatal Error 110: loading: " + mappedlib);
-      log(-1, "Since native library was found, it might be a problem with needed dependent libraries\n%s",
-              e.getMessage());
+      log(-1, "Since native library was found at %s\n it might be a problem with needed dependent libraries\nERROR: %s",
+              libPath, e.getMessage());
       if (Settings.isWindows()) {
         log(-1, "Check, wether a valid Sikuli libs folder is in system path at runtime!");
         if (Settings.runningSetup) {
@@ -787,7 +855,7 @@ public class ResourceLoader implements IResourceLoader {
           return;
         }
       }
-      RunSetup.popError("Problem with SikuliX libs folder - see error log");
+      popError("Problem with SikuliX libs folder - see error log");
       Sikulix.terminate(110);
     }
     log(lvl, "Now loaded: %s from: %s", libname, lib);
@@ -989,7 +1057,7 @@ public class ResourceLoader implements IResourceLoader {
    */
   private void copy(InputStream in, OutputStream out) throws IOException {
     byte[] tmp = new byte[8192];
-    int len = 0;
+    int len;
     while (true) {
       len = in.read(tmp);
       if (len <= 0) {
@@ -998,4 +1066,11 @@ public class ResourceLoader implements IResourceLoader {
       out.write(tmp, 0, len);
     }
   }
+
+	private void popError(String msg) {
+		log0(-1, msg);
+		if (!runningSikulixapi) {
+			Sikulix.popError(msg, "ResourceLoader: having problems ...");
+		}
+	}
 }

@@ -9,9 +9,22 @@ The Maven GroupID for the project is switched to **com.sikulix** (package names 
 The structure is reduced to 3 main packages:
  - API: now contains Basics, Natives and OpenCV4Sikuli (gets sikulixapi.jar)
  - IDE: unchanged (gets sikulix.jar)
- - Libs: everything related to native stuff including the prebuilt libraries (gets sikulixlibs.jar)
+ - 3 LibsXxx: everything related to native stuff including the prebuilt libraries (gets sikulixlibsxxx.jar)
 
 The other packages are mostly unchanged.
+<hr>
+**sikulixapi.jar is half way up to Maven Central -- SNAPSHOTS available on OSSRH**<br>
+
+The repository URL:<br>
+`<url>http://oss.sonatype.org/content/groups/public</url>`<br>
+
+The coordinates:<br>
+`<groupId>com.sikulix</groupId>`<br>
+`<artifactId>sikulixapi</artifactId>`<br>
+`<version>1.1.0-Beta4-SNAPSHOT</version>`
+
+find a **usage example** in [module TestRunMaven](https://github.com/RaiMan/SikuliX-2014/tree/master/TestRunMaven)
+
 <hr>
 **If you want to test the head of developement without the need to build from sources:** <br>
 [look here: I have setup a page with nightly builds](http://nightly.sikuli.de)<br>
@@ -89,26 +102,12 @@ For Windows and Mac the native packages will again be pre-built and ready-to-use
 
 For more information on preparation and usage of the new OpenCV Java API [look here ...](https://github.com/RaiMan/SikuliX-2014/wiki/How-to-prepare-and-use-the-new-OpenCV-Java-API)
 
-**Module Libs**
+**Modules LibsWin, LibsMac, LibsLux**
 
 The prebuilt native libraries for Windows, Mac and Linux (partially).<br />
-(gets `sikulixlibs.jar` and is contained in `sikulixsetup.jar`)
+(gets `sikulixlibsxxx.jar` and is contained in `sikulixsetup.jar`)
 
-It contains a Maven workflow to execute build scripts for the native libraries on the system running on:
- - Windows (not yet ready): WinUtil.dll, VisionProxy.dll
- - Mac: libMacHotkeyManager.dylib, libMacUtil.dylib, libVisionProxy.dylib
- - Linux: libVisionProxy.so
-
-To run it from the project root folder:<br />
-`mvn -f Libs/x*`
-
-The build scripts are in the respective system folder in folder `build` <br />
-The built libraries will directly go to the respective resources folder. <br />
-In case of errors you have to check the prerequisites: [look here ...](https://github.com/RaiMan/SikuliX-2014/wiki/How-to-prepare-for-and-build-the-native-libraries)
-
-For Linux there will still be a supplemental package available on the download page, that allows to build libVisionProxy.so
-<br><br>`sikulixlibs.jar` **is a candidate for MavenCentral**
-
+<br><br>`sikulixlibsxxx.jar` **are candidates for MavenCentral**
 
 **Module IDE**
 

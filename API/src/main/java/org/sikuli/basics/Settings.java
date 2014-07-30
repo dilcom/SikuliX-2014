@@ -45,6 +45,7 @@ public class Settings {
 	private static final String dlProdLink2 = "/+download/";
 	// used for download of development versions (nightly builds)
 	private static final String dlDevLink = "http://nightly.sikuli.de/";
+	private static final String dlMavenLink = "http://search.maven.org/remotecontent?filepath=";
 
 	private static String me = "Settings";
 	private static int lvl = 3;
@@ -85,6 +86,7 @@ public class Settings {
 	 * jarurl: where to download the jar from (no url: this standard place)<br>
 	 */
 	public static String SikuliRepo;
+	public static String SikuliLocalRepo = "";
 	private static String[] args = new String[0];
 	private static String[] sargs = new String[0];
 	public static String[] ServerList = {"http://dl.dropboxusercontent.com/u/42895525/SikuliX"};
@@ -99,6 +101,10 @@ public class Settings {
 	public static String SikuliVersion;
 	public static String SikuliVersionIDE;
 	public static String SikuliVersionScript;
+	public static String SikuliJythonVersion;
+	public static String SikuliJython;
+	public static String SikuliJRubyVersion;
+	public static String SikuliJRuby;
 	//TODO needed ???
 	public static final String libOpenCV = "libopencv_java248";
 
@@ -223,6 +229,15 @@ public class Settings {
       } else if (os.startsWith("linux")) {
         osn = "Linux";
       }
+
+			SikuliLocalRepo = prop.getProperty("sikulixlocalrepo");
+			SikuliJythonVersion = prop.getProperty("sikulixvjython");
+			SikuliJython=SikuliLocalRepo + "/org/Python/jython-standalone/" +
+							 SikuliJythonVersion + "/jython-standalone-" + SikuliJythonVersion + ".jar";
+			SikuliJRubyVersion = prop.getProperty("sikulixvjruby");
+			SikuliJRuby=SikuliLocalRepo + "/org/JRuby/jruby-complete/" +
+							 SikuliJRubyVersion + "/jruby-complete-" + SikuliJRubyVersion + ".jar";
+
       SikuliSystemVersion = osn + System.getProperty("os.version");
       SikuliJavaVersion = "Java" + JavaVersion + "(" + JavaArch + ")" + JREVersion;
 //TODO this should be in RunSetup only
@@ -398,7 +413,7 @@ public class Settings {
 	public static float WaitAfterHighlight = 0.3f;
 	public static boolean ActionLogs = true;
 	public static boolean InfoLogs = true;
-	public static boolean DebugLogs;
+	public static boolean DebugLogs = false;
 	public static boolean ProfileLogs = false;
 	public static boolean LogTime = false;
 	public static boolean UserLogs = true;
@@ -483,6 +498,16 @@ public class Settings {
 
 	public static boolean isMac() {
 		return getOS() == ISMAC;
+	}
+
+	public static String getShortOS() {
+		if (isWindows()) {
+			return "win";
+		}
+		if (isMac()) {
+			return "mac";
+		}
+		return "lux";
 	}
 
 	public static String getOSVersion() {

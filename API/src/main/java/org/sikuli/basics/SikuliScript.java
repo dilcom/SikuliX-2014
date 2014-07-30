@@ -11,7 +11,7 @@ import java.util.Arrays;
 import org.apache.commons.cli.CommandLine;
 
 /**
- * Contains the main class
+ * Contains the run class
  */
 public class SikuliScript {
 
@@ -27,7 +27,7 @@ public class SikuliScript {
 
   public static void runningInteractive() {
     isRunningInteractive = true;
-    Sikulix.displaySplash(null);
+//    Sikulix.displaySplash(null);
   }
 
   public static boolean getRunningInteractive() {
@@ -44,7 +44,7 @@ public class SikuliScript {
    *
    * @param args passed arguments
    */
-  public static void main(String[] args) {
+  public static void runscript(String[] args) {
 
     if (isRunningScript) {
       System.out.println("[error] SikuliScript: can only run one at a time!");
@@ -55,7 +55,7 @@ public class SikuliScript {
 
     Settings.initScriptingSupport();
 
-    Sikulix.displaySplash(args);
+//    Sikulix.displaySplash(args);
 
     if (args != null && args.length > 1 && args[0].startsWith("-testSetup")) {
       runner = Sikulix.getScriptRunner(args[1], null, args);

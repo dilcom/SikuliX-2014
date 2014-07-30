@@ -266,16 +266,21 @@ public class Sikulix {
   }
 
   protected static boolean addToClasspath(String jar) {
+    log0(lvl, "add to classpath: " + jar);
+		File jarFile = new File(jar);
+		if (!jarFile.exists()) {
+			log0(-1, "does not exist - not added");
+			return false;
+		}
     Method method;
     URLClassLoader sysLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
     URL[] urls = sysLoader.getURLs();
-    log0(lvl, "add to classpath: " + jar);
     for (int i = 0; i < urls.length; i++) {
       log0(lvl + 1, "%d: %s", i, urls[i]);
     }
     Class sysclass = URLClassLoader.class;
     try {
-      jar = FileManager.slashify(new File(jar).getAbsolutePath(), false);
+	    jar = FileManager.slashify(jarFile.getAbsolutePath(), false);
       if (Settings.isWindows()) {
         jar = "/" + jar;
       }
@@ -513,10 +518,19 @@ public class Sikulix {
     JOptionPane.showMessageDialog(null, message, title, JOptionPane.PLAIN_MESSAGE);
   }
 
+	public static void popError(String message) {
+    popup(message, "Sikuli");
+	}
+
+	public static void popError(String message, String title) {
+		JOptionPane.showMessageDialog(null, message, title, JOptionPane.ERROR_MESSAGE);
+	}
+
   public static String run(String cmdline) {
-    IResourceLoader loader = FileManager.getNativeLoader("basic", new String[0]);
-    String[] args = new String[]{cmdline};
-    loader.doSomethingSpecial("runcmd", args);
-    return args[0];
+    return run(new String[]{cmdline});
+  }
+  
+  public static String run(String[] cmd) {
+    return ResourceLoader.get().runcmd(cmd);
   }
 }

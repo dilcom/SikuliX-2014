@@ -32,6 +32,26 @@ public class Sikulix {
 		}
 	}
 
+  private static boolean runningSikulixapi = false;
+
+  /**
+   * Get the value of runningSikulixapi
+   *
+   * @return the value of runningSikulixapi
+   */
+  public static boolean isRunningSikulixapi() {
+    return runningSikulixapi;
+  }
+
+  /**
+   * Set the value of runningSikulixapi
+   *
+   * @param runningSikulixapi new value of runningSikulixapi
+   */
+  public static void setRunningSikulixapi(boolean runningSikulixapi) {
+    runningSikulixapi = runningSikulixapi;
+  }
+
 	public static void main(String[] args) {
 		Debug.test(me + "main: nothing to do (yet)");
 	}
@@ -208,5 +228,16 @@ public class Sikulix {
     if (verbose) {
       Debug.log(loglevel, "***** Classpath dump ***** end");
     }
+  }
+  
+  public static boolean isOnClasspath(String artefact) {
+    URLClassLoader sysLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
+    URL[] urls = sysLoader.getURLs();
+    for (URL url : urls) {
+      if (url.getPath().contains(artefact)) {
+        return true;
+      }
+    }
+    return false;
   }
 }
