@@ -64,7 +64,7 @@ public class JRubyScriptRunner implements IScriptRunner {
 	private final static String SCRIPT_HEADER
 					= "# coding: utf-8\n"
 					+ "require 'Lib/sikulix'\n"
-					+ "include SikuliX4Ruby\n";
+					+ "include Sikulix\n";
 
 	private static ArrayList<String> codeBefore = null;
 	private static ArrayList<String> codeAfter = null;
@@ -186,6 +186,11 @@ public class JRubyScriptRunner implements IScriptRunner {
 
 	@Override
 	public String getName() {
+    try {
+      Class.forName("org.jruby.embed.ScriptingContainer");
+    } catch (ClassNotFoundException ex) {
+      return null;
+    }
 		return Settings.RRUBY;
 	}
 
@@ -515,7 +520,9 @@ public class JRubyScriptRunner implements IScriptRunner {
 		try {
 			PipedOutputStream pout = new PipedOutputStream(pin[0]);
 			PrintStream ps = new PrintStream(pout, true);
-			System.setOut(ps);
+      if (!Settings.systemRedirected) {
+        System.setOut(ps);
+      }
 			interpreter.setOutput(ps);
 		} catch (Exception e) {
 			log(-1, "doRedirect: Couldn't redirect STDOUT\n%s", e.getMessage());
@@ -524,7 +531,9 @@ public class JRubyScriptRunner implements IScriptRunner {
 		try {
 			PipedOutputStream pout = new PipedOutputStream(pin[1]);
 			PrintStream ps = new PrintStream(pout, true);
-			System.setErr(ps);
+      if (!Settings.systemRedirected) {
+        System.setErr(ps);
+      }
 			interpreter.setError(ps);
 		} catch (Exception e) {
 			log(-1, "doRedirect: Couldn't redirect STDERR\n%s", e.getMessage());

@@ -440,6 +440,11 @@ public class JythonScriptRunner implements IScriptRunner {
 	 */
 	@Override
 	public String getName() {
+    try {
+      Class.forName("org.python.util.PythonInterpreter");
+    } catch (ClassNotFoundException ex) {
+      return null;
+    }
 		return Settings.RPYTHON;
 	}
 
@@ -614,20 +619,25 @@ public class JythonScriptRunner implements IScriptRunner {
 
 	private boolean doRedirect(PipedInputStream[] pin) {
 		PythonInterpreter py = getPythonInterpreter();
+		Debug.saveRedirected(System.out, System.err);
 		try {
 			PipedOutputStream pout = new PipedOutputStream(pin[0]);
 			PrintStream ps = new PrintStream(pout, true);
-			System.setOut(ps);
+      if (!Settings.systemRedirected) {
+  			System.setOut(ps);
+      }
 			py.setOut(ps);
 		} catch (Exception e) {
 			log(-1, "%s: redirect STDOUT: %s", getName(), e.getMessage());
 			return false;
 		}
 		try {
-			PipedOutputStream pout = new PipedOutputStream(pin[1]);
-			PrintStream ps = new PrintStream(pout, true);
-			System.setErr(ps);
-			py.setErr(ps);
+			PipedOutputStream eout = new PipedOutputStream(pin[1]);
+			PrintStream eps = new PrintStream(eout, true);
+      if (!Settings.systemRedirected) {
+        System.setErr(eps);
+      }
+			py.setErr(eps);
 		} catch (Exception e) {
 			log(-1, "%s: redirect STDERR: %s", getName(), e.getMessage());
 			return false;

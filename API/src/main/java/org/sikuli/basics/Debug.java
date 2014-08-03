@@ -8,6 +8,7 @@ package org.sikuli.basics;
 
 import java.io.FileNotFoundException;
 import java.io.PrintStream;
+import java.lang.reflect.Method;
 import java.text.DateFormat;
 import java.util.Date;
 
@@ -23,6 +24,9 @@ import java.util.Date;
  * folder)<br> This can be restricted to Debug.user only (others go to System.out):<br>
  * -Dsikuli.LogfileUser=pathname (no path given: UserLog.txt in working folder)<br>
  *
+ * You might redirect info, action, error and debug messages to your own logger object<br>
+ * Start with setLogger() and then define with setLoggerXyz() the redirection targets
+ *
  * This solution is NOT threadsafe !!!
  */
 public class Debug {
@@ -37,6 +41,27 @@ public class Debug {
   private static final DateFormat df =
           DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM);
   public static String logfile;
+
+	private static Object privateLogger = null;
+	private static boolean privateLoggerPrefixAll = true;
+	private static Method privateLoggerInfo = null;
+	private static String privateLoggerInfoName = "";
+	private static final String infoPrefix = "info";
+	private static String privateLoggerInfoPrefix = "[" + infoPrefix + "] ";
+	private static Method privateLoggerAction = null;
+	private static String privateLoggerActionName = "";
+	private static final String actionPrefix = "log";
+	private static String privateLoggerActionPrefix = "[" + actionPrefix + "] ";
+	private static Method privateLoggerError = null;
+	private static String privateLoggerErrorName = "";
+	private static final String errorPrefix = "error";
+	private static String privateLoggerErrorPrefix = "[" + errorPrefix + "] ";
+	private static Method privateLoggerDebug = null;
+	private static String privateLoggerDebugName = "";
+	private static final String debugPrefix = "debug";
+	private static String privateLoggerDebugPrefix = "";
+
+	private static PrintStream redirectedOut = null, redirectedErr = null;
 
   static {
     String debug = System.getProperty("sikuli.Debug");
@@ -57,6 +82,144 @@ public class Debug {
     setLogFile(null);
     setUserLogFile(null);
   }
+
+	/**
+	 * A logger object that is intended, to get Sikuli's log messages per redirection
+	 * @param logger the logger object
+	 */
+	public static void setLogger(Object logger) {
+		privateLogger = logger;
+		privateLoggerPrefixAll = true;
+	}
+
+	/**
+	 * same as setLogger(), but the Sikuli prefixes are omitted in all redirected messages
+	 * @param logger the logger object
+	 */
+	public static void setLoggerNoPrefix(Object logger) {
+		privateLogger = logger;
+		privateLoggerPrefixAll = false;
+	}
+
+	/**
+	 * sets the redirection for all message types info, action, error and debug
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the message text
+	 * @param mAll name of the method where the message should be sent
+	 * @return true if the method is available false otherwise	 */
+	public static boolean setLoggerAll(String mAll) {
+		if (privateLogger != null) {
+			boolean success = true;
+			success &= setLoggerInfo(mAll);
+			success &= setLoggerAction(mAll);
+			success &= setLoggerError(mAll);
+			success &= setLoggerDebug(mAll);
+			return success;
+		} else {
+			error("Debug: setLoggerAll: no logger specified yet");
+		}
+		return false;
+	}
+
+	/**
+	 * specify the target method for redirection of Sikuli's info messages [info]<br>
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the info message
+	 * @param mInfo name of the method where the message should be sent
+	 * @return true if the method is available false otherwise
+	 */
+	public static boolean setLoggerInfo(String mInfo) {
+		if (privateLogger != null) {
+			try {
+				privateLoggerInfo = privateLogger.getClass().getMethod(mInfo, new Class[]{String.class});
+				privateLoggerInfoName = mInfo;
+				return true;
+			} catch (Exception e) {
+				error("Debug: setLoggerInfo: redirecting to %s failed: \n%s", mInfo, e.getMessage());
+				return false;
+			}
+		} else {
+			error("Debug: setLoggerInfo: no logger specified yet");
+		}
+		return false;
+	}
+
+	/**
+	 * specify the target method for redirection of Sikuli's action messages [log]<br>
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the info message
+	 * @param mAction name of the method where the message should be sent
+	 * @return true if the method is available false otherwise
+	 */
+	public static boolean setLoggerAction(String mAction) {
+		if (privateLogger != null) {
+			try {
+				privateLoggerAction = privateLogger.getClass().getMethod(mAction, new Class[]{String.class});
+				privateLoggerActionName = mAction;
+				return true;
+			} catch (Exception e) {
+				return false;
+			}
+		} else {
+			error("Debug: setLoggerAction: no logger specified yet");
+		}
+		return false;
+	}
+
+	/**
+	 * specify the target method for redirection of Sikuli's error messages [error]<br>
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the info message
+	 * @param mError name of the method where the message should be sent
+	 * @return true if the method is available false otherwise
+	 */
+	public static boolean setLoggerError(String mError) {
+		if (privateLogger != null) {
+			try {
+				privateLoggerError = privateLogger.getClass().getMethod(mError, new Class[]{String.class});
+				privateLoggerErrorName = mError;
+				return true;
+			} catch (Exception e) {
+				return false;
+			}
+		} else {
+			error("Debug: setLoggerError: no logger specified yet");
+		}
+		return false;
+	}
+
+	/**
+	 * specify the target method for redirection of Sikuli's error messages [error]<br>
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the info message
+	 * @param mDebug name of the method where the message should be sent
+	 * @return true if the method is available false otherwise
+	 */
+	public static boolean setLoggerDebug(String mDebug) {
+		if (privateLogger != null) {
+			try {
+				privateLoggerDebug = privateLogger.getClass().getMethod(mDebug, new Class[]{String.class});
+				privateLoggerDebugName = mDebug;
+				return true;
+			} catch (Exception e) {
+				return false;
+			}
+		} else {
+			error("Debug: setLoggerError: no logger specified yet");
+		}
+		return false;
+	}
+
+	public static void saveRedirected(PrintStream rdo, PrintStream rde) {
+		redirectedOut = rdo;
+		redirectedErr = rde;
+	}
+
+	public static void out(String msg) {
+		if (redirectedOut != null && DEBUG_LEVEL > 2) {
+			redirectedOut.println(msg);
+		}
+	}
 
 	/**
 	 * specify, where the logs should be written:<br>
@@ -209,7 +372,19 @@ public class Debug {
    */
   public static void action(String message, Object... args) {
     if (Settings.ActionLogs) {
-      log(-1, "LOG", message, args);
+			if (privateLogger != null && privateLoggerAction != null) {
+				String prefix = privateLoggerPrefixAll ? privateLoggerActionPrefix : "";
+				try {
+					privateLoggerAction.invoke(privateLogger,
+									new Object[]{String.format(prefix + message, args)});
+					return;
+				} catch (Exception e) {
+					Debug.error("calling logger.%s failed - resetting to default: %s\n",
+									privateLoggerActionName, e.getMessage());
+					privateLoggerAction = null;
+				}
+			}
+      log(-1, actionPrefix, message, args);
     }
   }
 
@@ -232,7 +407,19 @@ public class Debug {
    */
   public static void info(String message, Object... args) {
     if (Settings.InfoLogs) {
-      log(-1, "INFO", message, args);
+			if (privateLogger != null && privateLoggerInfo != null) {
+				String prefix = privateLoggerPrefixAll ? privateLoggerInfoPrefix : "";
+				try {
+					privateLoggerInfo.invoke(privateLogger,
+									new Object[]{String.format(prefix + message, args)});
+					return;
+				} catch (Exception e) {
+					Debug.error("calling logger.%s failed - resetting to default: %s\n",
+									privateLoggerInfoName, e.getMessage());
+					privateLoggerInfo = null;
+				}
+			}
+      log(-1, infoPrefix, message, args);
     }
   }
 
@@ -242,9 +429,21 @@ public class Debug {
    * @param message String or format string (String.format)
    * @param args to use with format string
    */
-  public static void error(String message, Object... args) {
-    log(-1, "ERROR", message, args);
-  }
+	public static void error(String message, Object... args) {
+		if (privateLogger != null && privateLoggerError != null) {
+			String prefix = privateLoggerPrefixAll ? privateLoggerErrorPrefix : "";
+			try {
+				privateLoggerError.invoke(privateLogger,
+								new Object[]{String.format(prefix + message, args)});
+				return;
+			} catch (Exception e) {
+				Debug.error("calling logger.%s failed - resetting to default: %s\n",
+								privateLoggerErrorName, e.getMessage());
+				privateLoggerError = null;
+			}
+		}
+		log(-1, errorPrefix, message, args);
+	}
 
   /**
    * Sikuli messages to use in tests<br> switch on/off: always on
@@ -253,7 +452,7 @@ public class Debug {
    * @param args to use with format string
    */
   public static void test(String message, Object... args) {
-    log(-1, "TEST", message, args);
+    log(-1, "test", message, args);
   }
 
   /**
@@ -297,7 +496,7 @@ public class Debug {
    */
   public static void log(int level, String message, Object... args) {
     if (Settings.DebugLogs) {
-      log(level, "DEBUG", message, args);
+      log(level, debugPrefix, message, args);
     }
   }
 
@@ -310,11 +509,11 @@ public class Debug {
 	 */
 	public static void logx(int level, String prefix, String message, Object... args) {
     if (level == -1) {
-      log(level, "error", message, args);
+      log(level, errorPrefix, message, args);
     } else if (level == -2) {
-      log(level, "action", message, args);
+      log(level, actionPrefix, message, args);
     } else {
-      log(level, "debug", message, args);
+      log(level, debugPrefix, message, args);
     }
   }
 
@@ -326,21 +525,36 @@ public class Debug {
       if (Settings.LogTime && level != -99) {
         stime = String.format(" (%s)", df.format(new Date()));
       }
-      if (args.length != 0) {
-        sout = String.format("[" + prefix + stime + "] " + message, args);
-      } else {
-        sout = "[" + prefix + stime + "] " + message;
-      }
-      if (level == -99 && printoutuser != null) {
-        printoutuser.print(sout);
+			prefix = "[" + prefix + stime + "] ";
+      sout = String.format(message, args);
+			if (level > -99 && privateLogger != null && privateLoggerDebug != null) {
+				try {
+					if (privateLoggerPrefixAll) {
+						sout = prefix + sout;
+					} else {
+						sout = privateLoggerDebugPrefix + sout;
+					}
+					privateLoggerDebug.invoke(privateLogger, new Object[]{sout});
+					return;
+				} catch (Exception e) {
+					Debug.error("calling logger.%s failed - resetting to default: %s\n",
+									privateLoggerDebugName, e.getMessage());
+					privateLoggerDebug = null;
+				}
+			}
+			if (level == -99 && printoutuser != null) {
+        printoutuser.print(prefix + sout);
         printoutuser.println();
       } else if (printout != null) {
-        printout.print(sout);
+        printout.print(prefix + sout);
         printout.println();
       } else {
-        System.out.print(sout);
+        System.out.print(prefix + sout);
         System.out.println();
       }
+			if (level == -1 || level > 2) {
+				out(prefix + sout);
+			}
     }
   }
 

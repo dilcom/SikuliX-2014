@@ -136,6 +136,7 @@ public class Settings {
 
 	public static Map<String, IDESupport> ideSupporter = new HashMap<String, IDESupport>();
 	public static Map<String, IScriptRunner> scriptRunner = new HashMap<String, IScriptRunner>();
+  public static boolean systemRedirected = false;
 	private static List<String> supportedRunner = new ArrayList<String>();
 	public static Map<String, String> EndingTypes = new HashMap<String, String>();
 	public static Map<String, String> TypeEndings = new HashMap<String, String>();
@@ -261,25 +262,25 @@ public class Settings {
     return String.format("%s/%s/%s", SikuliVersionLong, SikuliSystemVersion, SikuliJavaVersion);
   }
 
-  public static void getStatus() {
-    log(lvl, "***** Information Dump *****");
-    log(lvl, "*** SystemInfo\n%s", getSystemInfo());
+  public static void getStatus(int level) {
+    log(level, "***** Information Dump *****");
+    log(level, "*** SystemInfo\n%s", getSystemInfo());
     System.getProperties().list(System.out);
-    log(lvl, "*** System Environment");
+    log(level, "*** System Environment");
     for (String key : System.getenv().keySet()) {
       System.out.println(String.format("%s = %s", key, System.getenv(key)));
     }
-    log(lvl, "*** Java Class Path");
+    log(level, "*** Java Class Path");
     URLClassLoader sysLoader = (URLClassLoader) ClassLoader.getSystemClassLoader();
     URL[] urls = sysLoader.getURLs();
     for (int i = 0; i < urls.length; i++) {
       System.out.println(String.format("%d: %s", i, urls[i]));
     }
-    log(lvl, "***** Information Dump ***** end *****");
+    log(level, "***** Information Dump ***** end *****");
   }
 
 	public static void initScriptingSupport() {
-		if (scriptRunner.size() == 0) {
+		if (scriptRunner.isEmpty()) {
 			ServiceLoader<IDESupport> sloader = ServiceLoader.load(IDESupport.class);
 			Iterator<IDESupport> supIterator = sloader.iterator();
 			while (supIterator.hasNext()) {
@@ -296,12 +297,12 @@ public class Settings {
 			while (rIterator.hasNext()) {
 				IScriptRunner current = rIterator.next();
 				String name = current.getName();
-				if (!name.startsWith("Not")) {
+				if (name != null && !name.startsWith("Not")) {
 					scriptRunner.put(name, current);
 				}
 			}
 		}
-		if (scriptRunner.size() == 0) {
+		if (scriptRunner.isEmpty()) {
 			Debug.error("Settings: No scripting support available. Rerun Setup!");
 			Sikulix.popup("No scripting support available. Rerun Setup!", "SikuliX - Fatal Error!");
 			System.exit(1);
