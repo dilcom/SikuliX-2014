@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -25,11 +25,11 @@ import org.sikuli.natives.Vision;
  */
 public class Observer {
 
-  private static String me = "Observer";
+  private static String me = "Observer: ";
   private static int lvl = 3;
 
   private static void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
+    Debug.logx(level, me + message, args);
   }
 
   protected enum State {
@@ -194,7 +194,7 @@ public class Observer {
         if (observedRegion.contains(r)) {
           lastSearchTime = (new Date()).getTime();
           Finder f = new Finder(new Screen().capture(r), r);
-          f.find(new Pattern(img.getImage()).similar(Settings.CheckLastSeenSimilar));
+          f.find(new Pattern(img).similar(Settings.CheckLastSeenSimilar));
           if (f.hasNext()) {
             log(lvl + 1, "checkLastSeen: still there");
             match = new Match(new Region(img.getLastSeen()), img.getLastSeenScore());

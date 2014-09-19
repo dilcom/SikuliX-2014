@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -83,7 +83,8 @@ public class RobotDesktop extends Robot implements IRobot {
       pc = mp.getLocation();
       if (pc.x != p.x || pc.y != p.y) {
         Debug.error("RobotDesktop: checkMousePosition: should be %s\nbut after move is %s"
-								+ "\nPossible cause: Mouse actions are blocked generally or by the frontmost application."
+								+ "\nPossible cause in case you did not touch the mouse while script was running:\n"
+                + " Mouse actions are blocked generally or by the frontmost application."
 								+ (Settings.isWindows() ? "\nYou might try to run the SikuliX stuff as admin." : ""),
                 p, new Location(pc));
       }

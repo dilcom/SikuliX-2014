@@ -1,19 +1,19 @@
-# Copyright 2010-2013, Sikuli.org
+# Copyright 2010-2014, Sikuli.org, sikulix.com
 # Released under the MIT License.
 # modified RaiMan 2013
 
 from __future__ import with_statement
 from org.sikuli.basics import Debug
-Debug.log(3, "Jython: sikuli: Sikuli: entering")
+Debug.log(3, "Jython: sikuli: Sikuli: starting init")
 import time
 import __builtin__
-import __main__
+#import __main__
 import types
 import sys
 import os
 import inspect
 
-Debug.log(3, "Jython: sikuli: Sikuli: constants")
+Debug.log(4, "Jython: sikuli: Sikuli: constants")
 import org.sikuli.script.FindFailed as FindFailed
 from org.sikuli.script.FindFailedResponse import *
 from org.sikuli.script.Constants import *
@@ -21,62 +21,67 @@ import org.sikuli.script.Button as Button
 from org.sikuli.script.Button import WHEEL_UP, WHEEL_DOWN
 from org.sikuli.basics import OS
 
-Debug.log(3, "Jython: sikuli: Sikuli: import Region")
+Debug.log(4, "Jython: sikuli: Sikuli: import Region")
 from org.sikuli.script import Region as JRegion
 from Region import *
 from org.sikuli.script import Observing
 
-Debug.log(3, "Jython: sikuli: Sikuli: import Screen")
+Debug.log(4, "Jython: sikuli: Sikuli: import Screen")
 from org.sikuli.script import Screen as JScreen
 from Screen import *
 
-Debug.log(3, "Jython: sikuli: Sikuli: Env.addHotkey")
+Debug.log(4, "Jython: sikuli: Sikuli: Env.addHotkey")
 from Env import *
 
-Debug.log(3, "Jython: sikuli: Sikuli: import Match")
+Debug.log(4, "Jython: sikuli: Sikuli: import Match")
 from org.sikuli.script import Match
-Debug.log(3, "Jython: sikuli: Sikuli: import Pattern")
+Debug.log(4, "Jython: sikuli: Sikuli: import Pattern")
 from org.sikuli.script import Pattern
-Debug.log(3, "Jython: sikuli: Sikuli: import Location")
+Debug.log(4, "Jython: sikuli: Sikuli: import Location")
 from org.sikuli.script import Location
-Debug.log(3, "Jython: sikuli: Sikuli: import ScreenUnion")
+Debug.log(4, "Jython: sikuli: Sikuli: import ScreenUnion")
 from org.sikuli.script import ScreenUnion
-Debug.log(3, "Jython: sikuli: Sikuli: import Finder")
+Debug.log(4, "Jython: sikuli: Sikuli: import Finder")
 from org.sikuli.script import Finder
 from org.sikuli.script import ImageFinder
 from org.sikuli.script import ImageFind
 
-Debug.log(3, "Jython: sikuli: Sikuli: import Image")
+Debug.log(4, "Jython: sikuli: Sikuli: import Image")
 from org.sikuli.script import Image
 from org.sikuli.script import ImageGroup
 
-Debug.log(3, "Jython: sikuli: Sikuli: import ImagePath")
+Debug.log(4, "Jython: sikuli: Sikuli: import ImagePath")
 from org.sikuli.script import ImagePath
 
-Debug.log(3, "Jython: sikuli: Sikuli: import App")
+Debug.log(4, "Jython: sikuli: Sikuli: import App")
 from org.sikuli.script import App
-Debug.log(3, "Jython: sikuli: Sikuli: import KeyBoard/Mouse")
+Debug.log(4, "Jython: sikuli: Sikuli: import KeyBoard/Mouse")
 from org.sikuli.script import Key
 from org.sikuli.script import KeyModifier
 from org.sikuli.script.KeyModifier import KEY_CTRL, KEY_SHIFT, KEY_META, KEY_CMD, KEY_WIN, KEY_ALT
 from org.sikuli.script import Mouse
 from org.sikuli.script import Keys
 
-Debug.log(3, "Jython: sikuli: Sikuli: import from Basics")
+Debug.log(4, "Jython: sikuli: Sikuli: import from Basics")
 from org.sikuli.basics import Settings
 from org.sikuli.basics import ExtensionManager
 
-Debug.log(3, "Jython: sikuli: Sikuli: import from compare")
+Debug.log(4, "Jython: sikuli: Sikuli: import from compare")
 from org.sikuli.script.compare import DistanceComparator
 from org.sikuli.script.compare import VerticalComparator
 from org.sikuli.script.compare import HorizontalComparator
 
-Debug.log(3, "Jython: sikuli: Sikuli: init SikuliImporter")
+Debug.log(4, "Jython: sikuli: Sikuli: init SikuliImporter")
 import SikuliImporter
 
-Debug.log(3, "Jython: sikuli: Sikuli: import Sikulix")
-from org.sikuli.basics import SikuliScript
-from org.sikuli.basics import Sikulix
+Debug.log(4, "Jython: sikuli: Sikuli: import Sikulix")
+from org.sikuli.script import Sikulix
+
+Debug.log(4, "Jython: sikuli: Sikuli: import ScriptRunner")
+try:
+	from org.sikuli.scriptrunner import ScriptRunner
+except:
+  pass
 
 ##
 # some support for handling unicode and strings
@@ -129,7 +134,7 @@ def load(jar):
 # append the given path sys.path if not yet contained
 #
 def addImportPath(path):
-    addModPath(path)
+    _addModPath(path)
 
 ##
 # append the given path image path list if not yet contained
@@ -160,36 +165,74 @@ def resetImagePath(path = None):
 ##
 # Sets the path for searching images in all Sikuli Script methods. <br/>
 # Sikuli IDE sets this to the path of the bundle of source code (.sikuli)
-# automatically. If you write Sikuli scripts by the Sikuli IDE, you should
-# not call this method.
+# automatically. If you write Sikuli scripts using Sikuli IDE, you should
+# know what you are doing.
 #
 def setBundlePath(path):
     ImagePath.setBundlePath(path)
 
 ##
-# return the current bundlepath (usually the folder .sikuli) or None if no bundlepath is defined
+# return the current bundlepath (usually the folder .sikuli) 
+# or None if no bundlepath is defined
+# no trailing path sep
 #
 def getBundlePath():
     return ImagePath.getBundlePath()
 
 ##
+# return the current bundlepath (usually the folder .sikuli) 
+# or None if no bundlepath is defined
+# with a trailing path separator (for string concatenation)
+#
+def getBundleFolder():
+    path = ImagePath.getBundlePath()
+    if not path: return None
+    return path + Settings.getFilePathSeperator();
+
+##
 # return the parent folder of the current bundlepath
 # (usually the folder containing the current script folder.sikuli)
 # or None if no bundlepath is defined
+# no trailing path sep
 #
 def getParentPath():
-    return ImagePath.getBundleParentPath();
+    path = ImagePath.getBundlePath()
+    if not path: return None
+    return os.path.dirname(makePath(getBundlePath()));
 
 ##
-# make a valid path by joining the two paths (path2 might be a list)
+# return the parent folder of the current bundlepath
+# (usually the folder containing the current script folder.sikuli)
+# or None if no bundlepath is defined
+# no trailing path sep
 #
-def makePath(path1, path2):
-  if (not isinstance(path2, List)):
-      path = os.path.join(path1, path2)
-  else:
-      path = path1
-      for p in path2:
-          path = os.path.join(path, p)
+def getParentFolder():
+    path = getParentPath()
+    if not path: return None
+    return path + Settings.getFilePathSeperator();
+
+##
+# make a valid path by by using os.path.join() with the given elements
+# always without a trailing path separator
+#
+def makePath(*paths):
+  if len(paths) == 0: return None
+  path = paths[0]
+  if len(paths) > 1: 
+    for p in paths[1:]:
+      path = os.path.join(path, p)
+  if path[-1] == Settings.getFilePathSeperator():
+    return os.path.dirname(path)
+  return path
+
+##
+# make a valid path by by using os.path.join() with the given elements
+# with a trailing path separator (for string concatenation)
+#
+def makeFolder(*paths):
+  path = makePath(*paths)
+  if not path: return None
+  path = path + Settings.getFilePathSeperator()
   return path
 
 ##
@@ -217,6 +260,7 @@ def input(msg="", default="", title="", hidden=False):
     if (hidden):
       default = ""
     return Sikulix.input(msg, default, title, hidden)
+
 ##
 # Shows a dialog request to enter text in a multiline text field
 # Though not all text might be visible, everything entered is delivered with the returned text
@@ -227,7 +271,18 @@ def input(msg="", default="", title="", hidden=False):
 # @param width the maximum number of characters visible in one line (default 20)
 # @return The user's input including the line breaks.
 def inputText(msg="", title="", lines=0, width=0):
-    return Sikulix.input(msg, title, width, lines)
+    return Sikulix.inputText(msg, title, width, lines)
+
+def select(msg="", title="", options=(), default=None):
+    if len(options) == 0:
+        return ""
+    if default:
+        if not __builtin__.type(default) is types.StringType:
+            try:
+                default = options[default]
+            except:
+                default = None
+    return Sikulix.popSelect(msg, title, options, default)
 
 def capture(*args):
     scr = ScreenUnion()
@@ -355,11 +410,6 @@ def run(cmd):
     return Sikulix.run(cmd)
 
 ##
-# display some help in interactive mode
-def shelp():
-    SikuliScript.shelp()
-
-##
 # helper functions, that can be used when sorting lists of regions
 #
 def byDistanceTo(x, y=None):
@@ -393,7 +443,7 @@ def distanceComparator(x, y=None):
 ##
 ################## internal use only ###########################################
 #
-def addModPath(path):
+def _addModPath(path):
     if path[-1] == Settings.getFilePathSeperator():
         path = path[:-1]
     if not path in sys.path:
@@ -435,4 +485,5 @@ def _exposeAllMethods(anyObject, saved, theGlobals, exclude_list):
 ############### set SCREEN as primary screen at startup ################
 use()
 ALL = JScreen.all()
+Debug.log(3, "Jython: sikuli: Sikuli: ending init")
 

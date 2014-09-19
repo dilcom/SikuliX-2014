@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -25,11 +25,10 @@ import org.sikuli.basics.Settings;
  */
 public class ImageFinder extends Finder {
 
-  private static String me = "ImageFinder";
+  private static String me = "ImageFinder: ";
   private static int lvl = 3;
-
   private static void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
+    Debug.logx(level, me + message, args);
   }
   private boolean isImageFinder = true;
   protected boolean isImage = false;

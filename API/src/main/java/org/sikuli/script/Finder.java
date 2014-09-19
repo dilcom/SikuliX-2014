@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -37,6 +37,12 @@ public class Finder implements Iterator<Match> {
 
   static {
     FileManager.loadLibrary("VisionProxy");
+  }
+
+  private static String me = "Finder: ";
+  private static int lvl = 3;
+  private static void log(int level, String message, Object... args) {
+    Debug.logx(level, me + message, args);
   }
 
   /**
@@ -100,10 +106,11 @@ public class Finder implements Iterator<Match> {
   /**
 	 * Finder constructor for special use from an Image
 	 *
-	 * @param simg Image
+	 * @param img Image
 	 */
-	public Finder(Image simg) {
-    _findInput.setSource(Image.convertBufferedImageToMat(simg.get()));
+	public Finder(Image img) {
+		log(lvl, "Image: %s", img);
+    _findInput.setSource(Image.convertBufferedImageToMat(img.get()));
   }
 
 	private void initScreenFinder(ScreenImage simg, Region region) {
@@ -199,11 +206,7 @@ public class Finder implements Iterator<Match> {
       _cur_result_i = 0;
       return img.getFilename();
     } else if (img.isUseable()) {
-      if (img.getPattern() !=null) {
-        return find(img.getPattern());
-      } else {
-        return null;
-      }
+      return find(new Pattern(img));
     } else {
       return null;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -18,7 +18,6 @@ import org.sikuli.script.Pattern;
 import org.sikuli.script.Region;
 import org.sikuli.script.ScreenImage;
 import org.sikuli.script.ScreenUnion;
-import org.sikuli.basics.LoadingSpinner;
 import org.sikuli.basics.Debug;
 
 class PatternPaneScreenshot extends JPanel implements ChangeListener, ComponentListener {

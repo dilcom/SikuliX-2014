@@ -12,6 +12,8 @@ import java.awt.datatransfer.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Locale;
@@ -29,11 +31,13 @@ import javax.swing.text.*;
 import org.sikuli.basics.Settings;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.FileManager;
-import org.sikuli.basics.IndentationLogic;
+import org.sikuli.idesupport.IIndentationLogic;
 import org.sikuli.script.Location;
-import org.sikuli.basics.Sikulix;
 import org.sikuli.script.Image;
 import org.sikuli.script.ImagePath;
+import org.sikuli.script.Sikulix;
+import org.sikuli.scriptrunner.IScriptRunner;
+import org.sikuli.scriptrunner.ScriptRunner;
 import org.sikuli.syntaxhighlight.ResolutionException;
 import org.sikuli.syntaxhighlight.grammar.Lexer;
 import org.sikuli.syntaxhighlight.grammar.Token;
@@ -41,46 +45,61 @@ import org.sikuli.syntaxhighlight.grammar.TokenType;
 
 public class EditorPane extends JTextPane implements KeyListener, CaretListener {
 
-	private static final String me = "EditorPane";
-  private static final int lvl = 3;
+	private static final String me = "EditorPane: ";
+	private static final int lvl = 3;
 
-  private static void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
-  }
+	private static void log(int level, String message, Object... args) {
+		Debug.logx(level, me + message, args);
+	}
 
 	private static TransferHandler transferHandler = null;
 	private static final Map<String, Lexer> lexers = new HashMap<String, Lexer>();
 	private PreferencesUser pref;
+
+	private File scriptSource = null;
+	private File scriptParent = null;
+	private File scriptImages = null;
+	private String scriptType = null;
+	private boolean scriptIsTemp = false;
+
+	private boolean scriptIsDirty = false;
+	private DirtyHandler dirtyHandler;
+
 	private File _editingFile;
-	private String editingType = null;
+//	private String scriptType = null;
 	private String _srcBundlePath = null;
 	private boolean _srcBundleTemp = false;
-	private boolean _dirty = false;
+	private String sikuliContentType;
+
 	private EditorCurrentLineHighlighter _highlighter = null;
 	private EditorUndoManager _undo = null;
-	private boolean hasErrorHighlight = false;
-	public boolean showThumbs;
 	// TODO: move to SikuliDocument ????
-	private IndentationLogic _indentationLogic = null;
+	private IIndentationLogic _indentationLogic = null;
+
+	private boolean hasErrorHighlight = false;
+
+	public boolean showThumbs;
 	static Pattern patPngStr = Pattern.compile("(\"[^\"]+?\\.(?i)(png|jpg|jpeg)\")");
 	static Pattern patCaptureBtn = Pattern.compile("(\"__CLICK-TO-CAPTURE__\")");
 	static Pattern patPatternStr = Pattern.compile(
 					"\\b(Pattern\\s*\\(\".*?\"\\)(\\.\\w+\\([^)]*\\))+)");
 	static Pattern patRegionStr = Pattern.compile(
 					"\\b(Region\\s*\\([\\d\\s,]+\\))");
+
 	//TODO what is it for???
 	private int _caret_last_x = -1;
 	private boolean _can_update_caret_last_x = true;
 	private SikuliIDEPopUpMenu popMenuImage;
-	private String sikuliContentType;
 	private SikuliEditorKit editorKit;
 	private EditorViewFactory editorViewFactory;
-  private DirtyHandler dirtyHandler;
+	private SikuliIDE sikuliIDE = null;
 
 	//<editor-fold defaultstate="collapsed" desc="Initialization">
 	public EditorPane(SikuliIDE ide) {
 		pref = PreferencesUser.getInstance();
 		showThumbs = !pref.getPrefMorePlainText();
+		sikuliIDE = ide;
+		log(lvl, "EditorPane: creating new pane (constructor)");
 	}
 
 	public void initBeforeLoad(String scriptType) {
@@ -91,26 +110,26 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		initBeforeLoad(scriptType, true);
 	}
 
-	public void initBeforeLoad(String scriptType, boolean reInit) {
+	private void initBeforeLoad(String scriptType, boolean reInit) {
 		String scrType = null;
 		boolean paneIsEmpty = false;
 
-    log(lvl, "initBeforeLoad: %s", scriptType);
+		log(lvl, "initBeforeLoad: %s", scriptType);
 		if (scriptType == null) {
-			scriptType = Settings.EDEFAULT;
+			scriptType = ScriptRunner.EDEFAULT;
 			paneIsEmpty = true;
 		}
 
-		if (Settings.EPYTHON.equals(scriptType)) {
-			scrType = Settings.CPYTHON;
+		if (ScriptRunner.EPYTHON.equals(scriptType)) {
+			scrType = ScriptRunner.CPYTHON;
 			_indentationLogic = SikuliIDE.getIDESupport(scriptType).getIndentationLogic();
 			_indentationLogic.setTabWidth(pref.getTabWidth());
-		} else if (Settings.ERUBY.equals(scriptType)) {
-			scrType = Settings.CRUBY;
+		} else if (ScriptRunner.ERUBY.equals(scriptType)) {
+			scrType = ScriptRunner.CRUBY;
 			_indentationLogic = null;
 		}
 
-//TODO should know, that scripttype not changed here to avoid unnecessary new setups    
+//TODO should know, that scripttype not changed here to avoid unnecessary new setups
 		if (scrType != null) {
 			sikuliContentType = scrType;
 			editorKit = new SikuliEditorKit();
@@ -130,19 +149,18 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			}
 		}
 
-
 		if (transferHandler == null) {
 			transferHandler = new MyTransferHandler();
 		}
 		setTransferHandler(transferHandler);
 
-    if (_highlighter == null) {
-      _highlighter = new EditorCurrentLineHighlighter(this);
-  		addCaretListener(_highlighter);
-  		initKeyMap();
-      addKeyListener(this);
-      addCaretListener(this);
-    }
+		if (_highlighter == null) {
+			_highlighter = new EditorCurrentLineHighlighter(this);
+			addCaretListener(_highlighter);
+			initKeyMap();
+			addKeyListener(this);
+			addCaretListener(this);
+		}
 
 		setFont(new Font(pref.getFontName(), Font.PLAIN, pref.getFontSize()));
 		setMargin(new Insets(3, 3, 3, 3));
@@ -164,7 +182,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 		SikuliIDE.getStatusbar().setCurrentContentType(getSikuliContentType());
 		log(lvl, "InitTab: (%s)", getSikuliContentType());
-		if (!Settings.hasTypeRunner(getSikuliContentType())) {
+		if (!ScriptRunner.hasTypeRunner(getSikuliContentType())) {
 			Sikulix.popup("No installed runner supports (" + getSikuliContentType() + ")\n"
 							+ "Trying to run the script will crash IDE!", "... serious problem detected!");
 		}
@@ -179,12 +197,12 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	private void updateDocumentListeners(String source) {
-    log(lvl, "updateDocumentListeners from: %s", source);
-    if (dirtyHandler == null) {
-      dirtyHandler = new DirtyHandler();
-    }
-    getDocument().addDocumentListener(dirtyHandler);
-    getDocument().addUndoableEditListener(getUndoManager());
+		log(lvl, "updateDocumentListeners from: %s", source);
+		if (dirtyHandler == null) {
+			dirtyHandler = new DirtyHandler();
+		}
+		getDocument().addDocumentListener(dirtyHandler);
+		getDocument().addUndoableEditListener(getUndoManager());
 	}
 
 	public EditorUndoManager getUndoManager() {
@@ -194,7 +212,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		return _undo;
 	}
 
-	public IndentationLogic getIndentationLogic() {
+	public IIndentationLogic getIndentationLogic() {
 		return _indentationLogic;
 	}
 
@@ -218,17 +236,15 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	public void keyTyped(java.awt.event.KeyEvent ke) {
 		//TODO implement code completion * checkCompletion(ke);
 	}
-  //</editor-fold>
+	//</editor-fold>
 
-	//<editor-fold defaultstate="collapsed" desc="file handling">
 	public String loadFile(boolean accessingAsFile) throws IOException {
-		File file = new SikuliIDEFileChooser(SikuliIDE.getInstance(), accessingAsFile).load();
+		File file = new SikuliIDEFileChooser(sikuliIDE, accessingAsFile).load();
 		if (file == null) {
 			return null;
 		}
 		String fname = FileManager.slashify(file.getAbsolutePath(), false);
-		SikuliIDE ide = SikuliIDE.getInstance();
-		int i = ide.isAlreadyOpen(fname);
+		int i = sikuliIDE.isAlreadyOpen(fname);
 		if (i > -1) {
 			log(lvl, "loadFile: Already open in IDE: " + fname);
 			return null;
@@ -241,27 +257,53 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public void loadFile(String filename) {
-    log(lvl, "loadfile: %s", filename);
+		log(lvl, "loadfile: %s", filename);
 		filename = FileManager.slashify(filename, false);
 		setSrcBundle(filename + "/");
 		File script = new File(filename);
-		_editingFile = FileManager.getScriptFile(script, null, null);
+		_editingFile = ScriptRunner.getScriptFile(script);
 		if (_editingFile != null) {
-			editingType = _editingFile.getAbsolutePath().substring(_editingFile.getAbsolutePath().lastIndexOf(".") + 1);
-			initBeforeLoad(editingType);
-			try {
-				this.read(new BufferedReader(new InputStreamReader(
-								new FileInputStream(_editingFile), "UTF8")), null);
-			} catch (Exception ex) {
+			scriptType = _editingFile.getAbsolutePath().substring(_editingFile.getAbsolutePath().lastIndexOf(".") + 1);
+			initBeforeLoad(scriptType);
+			if (!readScript(_editingFile)) {
 				_editingFile = null;
 			}
 			updateDocumentListeners("loadFile");
 			setDirty(false);
-			_srcBundleTemp = false;
 		}
 		if (_editingFile == null) {
 			_srcBundlePath = null;
+		} else {
+			_srcBundleTemp = false;
 		}
+	}
+
+	private boolean readScript(Object script) {
+		InputStreamReader isr;
+		try {
+			if (script instanceof String) {
+				isr = new InputStreamReader(new ByteArrayInputStream(((String) script).getBytes("UTF8")));
+			} else if (script instanceof File) {
+				isr = new InputStreamReader(new FileInputStream((File) script), "UTF8");
+			} else {
+				log(-1, "readScript: not supported %s as %s", script, script.getClass());
+				return false;
+			}
+			this.read(new BufferedReader(isr), null);
+		} catch (Exception ex) {
+			log(-1, "read returned %s", ex.getMessage());
+			return false;
+		}
+		return true;
+	}
+
+	@Override
+	public void read(Reader in, Object desc) throws IOException {
+		super.read(in, desc);
+		Document doc = getDocument();
+		Element root = doc.getDefaultRootElement();
+		parse(root);
+		setCaretPosition(0);
 	}
 
 	public boolean hasEditingFile() {
@@ -272,14 +314,13 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		if (_editingFile == null) {
 			return saveAsFile(Settings.isMac());
 		} else {
-			ImagePath.remove(_srcBundlePath);
 			writeSrcFile();
 			return getCurrentShortFilename();
 		}
 	}
 
 	public String saveAsFile(boolean accessingAsFile) throws IOException {
-		File file = new SikuliIDEFileChooser(SikuliIDE.getInstance(), accessingAsFile).save();
+		File file = new SikuliIDEFileChooser(sikuliIDE, accessingAsFile).save();
 		if (file == null) {
 			return null;
 		}
@@ -294,11 +335,11 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			if (res != JOptionPane.YES_OPTION) {
 				return null;
 			}
-		} else {
-			FileManager.mkdir(bundlePath);
+			FileManager.deleteFileOrFolder(bundlePath);
 		}
+		FileManager.mkdir(bundlePath);
 		try {
-			saveAsBundle(bundlePath, (SikuliIDE.getInstance().getCurrentFileTabTitle()));
+			saveAsBundle(bundlePath, (sikuliIDE.getCurrentFileTabTitle()));
 			if (Settings.isMac()) {
 				if (!Settings.handlesMacBundles) {
 					makeBundle(bundlePath, accessingAsFile);
@@ -327,18 +368,20 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 	private void saveAsBundle(String bundlePath, String current) throws IOException {
 //TODO allow other file types
+		log(lvl, "saveAsBundle: " + getSrcBundle());
 		bundlePath = FileManager.slashify(bundlePath, true);
 		if (_srcBundlePath != null) {
-			FileManager.xcopy(_srcBundlePath, bundlePath, current);
+			if (!ScriptRunner.transferScript(_srcBundlePath, bundlePath)) {
+				log(-1, "saveAsBundle: did not work - ");
+			}
 		}
+		ImagePath.remove(_srcBundlePath);
 		if (_srcBundleTemp) {
 			FileManager.deleteTempDir(_srcBundlePath);
 			_srcBundleTemp = false;
 		}
-		ImagePath.remove(_srcBundlePath);
 		setSrcBundle(bundlePath);
-		_editingFile = createSourceFile(bundlePath, "." + Settings.TypeEndings.get(sikuliContentType));
-		log(lvl, "saveAsBundle: " + getSrcBundle());
+		_editingFile = createSourceFile(bundlePath, "." + ScriptRunner.typeEndings.get(sikuliContentType));
 		writeSrcFile();
 		reparse();
 	}
@@ -364,90 +407,97 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 			(new File(snameDir, sname)).delete();
 		}
 		if (PreferencesUser.getInstance().getAtSaveCleanBundle()) {
-			cleanBundle(getSrcBundle());
+			if (!sikuliContentType.equals(ScriptRunner.CPYTHON)) {
+				log(lvl, "delete-not-used-images for %s using Python string syntax", sikuliContentType);
+			}
+			cleanBundle();
 		}
 		setDirty(false);
 	}
 
-	private void cleanBundle(String bundle) {
-    log(3, "cleanBundle: for %s", bundle);
-    String pbundle = FileManager.slashify(bundle, false);
-    if (! (new File(pbundle).isDirectory())) {
-      log(-1, "cleanBundle: no directory/folder");
-      return;
-    }
+	private Map<String, List<Integer>> parseforImages() {
+		String pbundle = FileManager.slashify(getSrcBundle(), false);
+		log(3, "parseforImages: in \n%s", pbundle);
 		String scriptText = getText();
 		Lexer lexer = getLexer();
-		Iterable<Token> tokens = lexer.getTokens(scriptText);
-		List<String> usedImages = new ArrayList<String>();
+		Map<String, List<Integer>> images = new HashMap<String, List<Integer>>();
+		parseforImagesWalk(pbundle, lexer, scriptText, 0, images);
+		return images;
+	}
+
+	private void parseforImagesWalk(String pbundle, Lexer lexer,
+					String text, int pos, Map<String, List<Integer>> images) {
+		Iterable<Token> tokens = lexer.getTokens(text);
 		boolean inString = false;
 		String current;
+		String innerText;
+		String[] possibleImage = new String[]{""};
+		String[] stringType = new String[]{""};
 		for (Token t : tokens) {
 			current = t.getValue();
 			if (t.getType() == TokenType.Comment) {
-				cleanBundleCheckComments(pbundle, lexer, t.getValue().substring(1), usedImages);
+				innerText = t.getValue().substring(1);
+				parseforImagesWalk(pbundle, lexer, innerText, t.getPos() + 1, images);
 				continue;
 			}
 			if (t.getType() == TokenType.String_Doc) {
-				cleanBundleCheckComments(pbundle, lexer, 
-                t.getValue().substring(3, t.getValue().length() - 3), usedImages);
+				innerText = t.getValue().substring(3, t.getValue().length() - 3);
+				parseforImagesWalk(pbundle, lexer, innerText, t.getPos() + 3, images);
 				continue;
 			}
 			if (!inString) {
-				if (!current.isEmpty() && "'\"".contains(current)) {
-					inString = true;
-				}
+				inString = parseforImagesGetName(current, inString, possibleImage, stringType);
 				continue;
 			}
-			if (!current.isEmpty() && "'\"".contains(current)) {
+			if (!parseforImagesGetName(current, inString, possibleImage, stringType)) {
 				inString = false;
+				parseforImagesCollect(pbundle, possibleImage[0], pos + t.getPos(), images);
 				continue;
 			}
-			cleanBundleIsImageUsed(pbundle, current, usedImages);
-		}
-		if (usedImages.isEmpty()) {
-			return;
-		}
-		FileManager.deleteNotUsedImages(bundle, usedImages);
-	}
-
-	private void cleanBundleCheckComments(String pbundle, Lexer lexer, String comment, List<String> usedImages) {
-		Iterable<Token> tokens = lexer.getTokens(comment);
-		boolean inString = false;
-		String current;
-		for (Token t : tokens) {
-			current = t.getValue();
-			if (!inString) {
-				if ("'\"".contains(current)) {
-					inString = true;
-				}
-				continue;
-			}
-			if ("'\"".contains(current)) {
-				inString = false;
-				continue;
-			}
-			cleanBundleIsImageUsed(pbundle, current, usedImages);
 		}
 	}
 
-	private void cleanBundleIsImageUsed(String pbundle, String img, List<String> usedImages) {
-    String fimg;
+	private boolean parseforImagesGetName(String current, boolean inString,
+					String[] possibleImage, String[] stringType) {
+		if (!inString) {
+			if (!current.isEmpty() && (current.contains("\"") || current.contains("'"))) {
+				possibleImage[0] = "";
+				stringType[0] = current.substring(current.length() - 1, current.length());
+				return true;
+			}
+		}
+		if (!current.isEmpty() && "'\"".contains(current) && stringType[0].equals(current)) {
+			return false;
+		}
+		if (inString) {
+			possibleImage[0] += current;
+		}
+		return inString;
+	}
+
+	private void parseforImagesCollect(String pbundle, String img, int pos, Map<String, List<Integer>> images) {
+		String fimg;
 		if (img.endsWith(".png") || img.endsWith(".jpg") || img.endsWith(".jpeg")) {
-      fimg = FileManager.slashify(img, false);
+			fimg = FileManager.slashify(img, false);
 			if (fimg.contains("/")) {
-        if (fimg.contains(pbundle)) {
-          img = new File(fimg).getName();
-        } else {
-          log(lvl, "save: used image ignored: %s", img);
-          return;
-        }
+				if (!fimg.contains(pbundle)) {
+					return;
+				}
+				img = new File(fimg).getName();
 			}
-			log(lvl, "save: used image: %s", img);
-			if (!usedImages.contains(img)) {
-				usedImages.add(img);
+			if (images.containsKey(img)) {
+				images.get(img).add(pos);
+			} else {
+				List<Integer> poss = new ArrayList<Integer>();
+				poss.add(pos);
+				images.put(img, poss);
 			}
 		}
+	}
+
+	private void cleanBundle() {
+		log(3, "cleanBundle");
+		FileManager.deleteNotUsedImages(getBundlePath(), parseforImages().keySet());
 	}
 
 	private Lexer getLexer() {
@@ -463,11 +513,10 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		} catch (ResolutionException ex) {
 			return null;
 		}
-
 	}
 
 	public String exportAsZip() throws IOException, FileNotFoundException {
-		File file = new SikuliIDEFileChooser(SikuliIDE.getInstance()).export();
+		File file = new SikuliIDEFileChooser(sikuliIDE).export();
 		if (file == null) {
 			return null;
 		}
@@ -491,6 +540,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public boolean close() throws IOException {
+		log(lvl, "Tab close clicked");
 		if (isDirty()) {
 			Object[] options = {SikuliIDEI18N._I("yes"), SikuliIDEI18N._I("no"), SikuliIDEI18N._I("cancel")};
 			int ans = JOptionPane.showOptionDialog(this,
@@ -508,15 +558,15 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 					return false;
 				}
 			} else {
-				SikuliIDE.getInstance().getTabPane().resetLastClosed();
-			}
-			if (_srcBundleTemp) {
-				FileManager.deleteTempDir(_srcBundlePath);
+//				sikuliIDE.getTabPane().resetLastClosed();
 			}
 			setDirty(false);
 		}
 		if (_srcBundlePath != null) {
 			ImagePath.remove(_srcBundlePath);
+			if (_srcBundleTemp) {
+				FileManager.deleteTempDir(_srcBundlePath);
+			}
 		}
 		return true;
 	}
@@ -535,6 +585,11 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		return _srcBundlePath;
 	}
 
+	// used at ButtonRun.run
+	protected String getBundlePath() {
+		return _srcBundlePath;
+	}
+
 	public boolean isSourceBundleTemp() {
 		return _srcBundleTemp;
 	}
@@ -542,7 +597,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	public String getCurrentSrcDir() {
 		if (_srcBundlePath != null) {
 			if (_editingFile == null || _srcBundleTemp) {
-				return null;
+				return FileManager.normalize(_srcBundlePath);
 			} else {
 				return _editingFile.getParent();
 			}
@@ -551,7 +606,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 	}
 
-	private String getCurrentShortFilename() {
+	public String getCurrentShortFilename() {
 		if (_srcBundlePath != null) {
 			File f = new File(_srcBundlePath);
 			return f.getName();
@@ -584,9 +639,9 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 //TODO convertSrcToHtml has to be completely revised
 	private void convertSrcToHtml(String bundle) {
-		if (null != Sikulix.getScriptRunner("jython", null, new String[]{"convertSrcToHtml"})) {
-			Sikulix.getScriptRunner("jython", null, null).doSomethingSpecial("convertSrcToHtml",
-							new String[]{bundle});
+		IScriptRunner runner = ScriptRunner.getRunner(null, "jython");
+		if (runner != null) {
+			runner.doSomethingSpecial("convertSrcToHtml", new String[]{bundle});
 		}
 	}
 
@@ -598,18 +653,10 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				File newFile = FileManager.smartCopy(filename, bundlePath);
 				return newFile;
 			} catch (IOException e) {
-				log(-1,"copyFileToBundle: Problem while trying to save %s\n%s",
+				log(-1, "copyFileToBundle: Problem while trying to save %s\n%s",
 								filename, e.getMessage());
 				return f;
 			}
-		}
-		return null;
-	}
-
-	public File getFileInBundle(String filename) {
-		String fullpath = Image.create(filename).getFilename();
-		if (fullpath != null) {
-			return new File(fullpath);
 		}
 		return null;
 	}
@@ -618,55 +665,36 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		return Image.createThumbNail(filename);
 	}
 
-//</editor-fold>
-	//<editor-fold defaultstate="collapsed" desc="fill pane content">
-	@Override
-	public void read(Reader in, Object desc) throws IOException {
-		super.read(in, desc);
-		Document doc = getDocument();
-		Element root = doc.getDefaultRootElement();
-		parse(root);
-		setCaretPosition(0);
-	}
-  //</editor-fold>
-
 	//<editor-fold defaultstate="collapsed" desc="Dirty handling">
 	public boolean isDirty() {
-		return _dirty;
+		return scriptIsDirty;
 	}
 
 	public void setDirty(boolean flag) {
-		if (_dirty == flag) {
+		if (scriptIsDirty == flag) {
 			return;
 		}
-		_dirty = flag;
-		//<editor-fold defaultstate="collapsed" desc="RaiMan no global dirty">
-		if (flag) {
-			//RaiManMod getRootPane().putClientProperty("Window.documentModified", true);
-		} else {
-			//SikuliIDE.getInstance().checkDirtyPanes();
-		}
-		//</editor-fold>
-		SikuliIDE.getInstance().setCurrentFileTabTitleDirty(_dirty);
+		scriptIsDirty = flag;
+		sikuliIDE.setCurrentFileTabTitleDirty(scriptIsDirty);
 	}
 
 	private class DirtyHandler implements DocumentListener {
 
 		@Override
 		public void changedUpdate(DocumentEvent ev) {
-			log(lvl+1, "change update");
+			log(lvl + 1, "change update");
 			//setDirty(true);
 		}
 
 		@Override
 		public void insertUpdate(DocumentEvent ev) {
-			log(lvl+1, "insert update");
+			log(lvl + 1, "insert update");
 			setDirty(true);
 		}
 
 		@Override
 		public void removeUpdate(DocumentEvent ev) {
-			log(lvl+1, "remove update");
+			log(lvl + 1, "remove update");
 			setDirty(true);
 		}
 	}
@@ -713,7 +741,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public boolean jumpTo(int lineNo, int column) {
-		log(lvl+1, "jumpTo pos: " + lineNo + "," + column);
+		log(lvl + 1, "jumpTo pos: " + lineNo + "," + column);
 		try {
 			int off = getLineStartOffset(lineNo - 1) + column - 1;
 			int lineCount = getDocument().getDefaultRootElement().getElementCount();
@@ -734,7 +762,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	}
 
 	public boolean jumpTo(int lineNo) {
-		log(lvl+1, "jumpTo line: " + lineNo);
+		log(lvl + 1, "jumpTo line: " + lineNo);
 		try {
 			setCaretPosition(getLineStartOffset(lineNo - 1));
 		} catch (BadLocationException ex) {
@@ -758,7 +786,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 
 	//<editor-fold defaultstate="collapsed" desc="TODO only used for UnitTest">
 	public void jumpTo(String funcName) throws BadLocationException {
-		log(lvl+1, "jumpTo function: " + funcName);
+		log(lvl + 1, "jumpTo function: " + funcName);
 		Element root = getDocument().getDefaultRootElement();
 		int pos = getFunctionStartOffset(funcName, root);
 		if (pos >= 0) {
@@ -794,64 +822,53 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 	//</editor-fold>
 
 	//<editor-fold defaultstate="collapsed" desc="replace text patterns with image buttons">
+	public boolean reparse(String oldName, String newName, boolean fileOverWritten) {
+		boolean success;
+		if (fileOverWritten) {
+			Image.unCacheBundledImage(newName);
+		}
+    Map<String,List<Integer>> images = parseforImages();
+    oldName = new File(oldName).getName();
+    List<Integer> poss = images.get(oldName);
+    if (images.containsKey(oldName) && poss.size() > 0) {
+      Collections.sort(poss, new Comparator<Integer>() {
+        @Override
+        public int compare(Integer o1, Integer o2) {
+          if (o1 > o2) return -1;
+          return 1;
+        }
+      });
+			reparseRenameImages(poss, oldName, new File(newName).getName());
+    }
+		return reparse();
+	}
+
+	private boolean reparseRenameImages(List<Integer> poss, String oldName, String newName) {
+		StringBuilder text = new StringBuilder(getText());
+		int lenOld = oldName.length();
+		for (int pos : poss) {
+			text.replace(pos - lenOld, pos, newName);
+		}
+		setText(text.toString());
+		return true;
+	}
+
 	public boolean reparse() {
-		File temp = null;
-		Element e = this.getDocument().getDefaultRootElement();
-		if (e.getEndOffset() - e.getStartOffset() == 1) {
+		String paneContent = this.getText();
+		if (paneContent.length() < 7) {
 			return true;
 		}
-		temp = reparseBefore();
-		if (temp != null) {
-			boolean result = reparseAfter(temp);
-			if (result) {
-				updateDocumentListeners("reparse");
-				return true;
-			}
+		if (readScript(paneContent)) {
+			updateDocumentListeners("reparse");
+			return true;
 		}
 		return false;
 	}
 
-	public File reparseBefore() {
-		Element e = this.getDocument().getDefaultRootElement();
-		if (e.getEndOffset() - e.getStartOffset() == 1) {
-			return null;
-		}
-		File temp = FileManager.createTempFile("reparse");
-		try {
-			writeFile(temp.getAbsolutePath());
-			return temp;
-		} catch (IOException ex) {
-		}
-		return null;
-	}
-
+//TODO not clear what this is for LOL (SikuliIDEPopUpMenu.doSetType)
 	public boolean reparseCheckContent() {
-		Element e = this.getDocument().getDefaultRootElement();
-		String txt;
-		if (e.getElementCount() > 2) {
-			return false;
-		} else if (e.getElement(1).getEndOffset() - e.getElement(1).getStartOffset() > 1) {
-			return false;
-		} else {
-			int is = e.getElement(0).getStartOffset();
-			int ie = e.getElement(0).getEndOffset();
-			try {
-				txt = e.getElement(0).getDocument().getText(is, ie - 1);
-				if (txt.endsWith(Settings.TypeCommentToken)) {
-					return true;
-				}
-			} catch (BadLocationException ex) {
-				return false;
-			}
-		}
-		return false;
-	}
-
-	public boolean reparseAfter(File temp) {
-		try {
-			this.read(new BufferedReader(new InputStreamReader(new FileInputStream(temp), "UTF8")), null);
+		if (this.getText().contains(ScriptRunner.TypeCommentToken)) {
 			return true;
-		} catch (IOException ex) {
 		}
 		return false;
 	}
@@ -864,7 +881,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		int count = node.getElementCount();
 		for (int i = 0; i < count; i++) {
 			Element elm = node.getElement(i);
-			log(lvl+1, elm.toString());
+			log(lvl + 1, elm.toString());
 			if (elm.isLeaf()) {
 				int start = elm.getStartOffset(), end = elm.getEndOffset();
 				parseRange(start, end);
@@ -1057,7 +1074,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 		int ret = -1;
 		Document doc = getDocument();
-		Debug.log(lvl, "search: %s from %d forward: %s",str,  pos, forward);
+		Debug.log(lvl, "search: %s from %d forward: %s", str, pos, forward);
 		try {
 			String body;
 			int begin;
@@ -1084,7 +1101,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 				}
 			}
 		} catch (BadLocationException e) {
-			log(-1,"search: did not work:\n" + e.getStackTrace());
+			log(-1, "search: did not work:\n" + e.getStackTrace());
 		}
 		return ret;
 	}
@@ -1210,6 +1227,7 @@ public class EditorPane extends JTextPane implements KeyListener, CaretListener 
 		}
 	}
 //</editor-fold>
+
 	//<editor-fold defaultstate="collapsed" desc="currently not used">
 	private String _tabString = "   ";
 

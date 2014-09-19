@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.StringTokenizer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
+import org.sikuli.script.Sikulix;
 
 public class ResourceLoader {
 //implements IResourceLoader {
@@ -35,11 +36,11 @@ public class ResourceLoader {
   private int lvl = 3;
 
   private void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + mem + ": " + message, args);
+    Debug.logx(level, me + ": " + mem + ": " + message, args);
   }
 
   private void log0(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
+    Debug.logx(level, me + ": " + message, args);
   }
   //</editor-fold>
 
@@ -189,7 +190,7 @@ public class ResourceLoader {
 				if (jarPath.contains("API")) {
 					log(-1, "The jar in use was not built with setup!\n"
 									+ "We might be running from local Maven repository?\n" + jarPath);
-					jarName = "API";
+          jarName = "API";
 					libsJarName = "Libs" + Settings.getShortOS();
 					tessJarName = "Tesseract";
 				}
@@ -216,9 +217,9 @@ public class ResourceLoader {
 					}
 				}
 				if (libsURL == null) {
-					popError("Terminating: The jar was not built with setup nor "
+					log(-1, "Terminating: The jar was not built with setup nor "
 									+ "can the libs be exported from classpath!\n" + jarPath);
-					System.exit(1);
+					Sikulix.terminate(999);
 				}
 			}
 
@@ -243,7 +244,7 @@ public class ResourceLoader {
       if (Settings.isMac()) {
         if (!osarch.contains("64")) {
           log(-1, "Mac: only 64-Bit supported");
-          Sikulix.terminate(0);
+          Sikulix.terminate(999);
         }
         libSource = String.format(libSource64, "mac");
         checkFileName = checkFileNameMac;
@@ -379,13 +380,11 @@ public class ResourceLoader {
       }
     }
 
-    initDone = true;
-
     if (libsDir == null && libPath != null) {
       log(lvl, "libs dir is empty, has wrong content or is outdated");
       log(lvl, "Trying to extract libs to: " + libPath);
       if (!FileManager.deleteFileOrFolder(libPath,
-              new FileManager.fileFilter() {
+              new FileManager.FileFilter() {
                 @Override
                 public boolean accept(File entry) {
                   if (entry.getPath().contains("tessdata")) {
@@ -395,7 +394,6 @@ public class ResourceLoader {
                 }
               })) {
         log(-1, "Fatal Error 102: not possible to empty libs dir");
-        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(102);
       }
       File dir = (new File(libPath));
@@ -403,7 +401,6 @@ public class ResourceLoader {
       if (extractLibs(dir.getParent(), libSource) == null) {
         log(-1, "... not possible!");
         libPath = null;
-        initDone = false;
       } else {
         libsDir = checkLibsDir(libPath);
       }
@@ -412,11 +409,20 @@ public class ResourceLoader {
     //<editor-fold defaultstate="collapsed" desc="libs dir finally invalid">
     if (libPath == null) {
       log(-1, "No valid libs path available until now!");
+      File jarPathLibs = null;
 
 			if (libPath == null && jarParentPath != null) {
         if (jarPath.endsWith(".jar") && libsURL == null) {
-          log(-2, "Please wait! Trying to extract libs to jar parent folder: " + jarParentPath);
-          File jarPathLibs = extractLibs((new File(jarParentPath)).getAbsolutePath(), libSource);
+          log(-2, "Please wait! Trying to extract libs to jar parent folder: \n" + jarParentPath);
+          jarPathLibs = extractLibs((new File(jarParentPath)).getAbsolutePath(), libSource);
+          if (jarPathLibs == null) {
+            log(-1, "not possible!");
+          } else {
+            libPath = jarPathLibs.getAbsolutePath();
+          }
+        } else if (Settings.runningSetupInValidContext) {
+          log(-2, "Please wait! Trying to extract libs to working folder: \n" + jarParentPath);
+          jarPathLibs = extractLibs(Settings.runningSetupInContext, libSource);
           if (jarPathLibs == null) {
             log(-1, "not possible!");
           } else {
@@ -425,7 +431,7 @@ public class ResourceLoader {
         }
       }
       if (libPath == null && userSikuli != null) {
-        log(-2, "Please wait! Trying to extract libs to user home: " + userSikuli);
+        log(-2, "Please wait! Trying to extract libs to user home: \n" + userSikuli);
         File userhomeLibs = extractLibs((new File(userSikuli)).getAbsolutePath(), libSource);
         if (userhomeLibs == null) {
           log(-1, "not possible!");
@@ -436,7 +442,6 @@ public class ResourceLoader {
       libsDir = checkLibsDir(libPath);
       if (libPath == null || libsDir == null) {
         log(-1, "Fatal Error 103: No valid native libraries folder available - giving up!");
-        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(103);
       }
     }
@@ -448,11 +453,10 @@ public class ResourceLoader {
         log(lvl, "Trying to use provided library at: " + libsLinux.getAbsolutePath());
         try {
           FileManager.xcopy(libsLinux.getAbsolutePath(),
-                  new File(libPath, "libVisionProxy.so").getAbsolutePath(), null);
+                  new File(libPath, "libVisionProxy.so").getAbsolutePath());
         } catch (IOException ex) {
           log(-1, "... did not work: " + ex.getMessage());
-          popError("Provided libVisionProxy not useable - see error log");
-          Sikulix.terminate(0);
+          Sikulix.terminate(999);
         }
       }
     }
@@ -469,6 +473,7 @@ public class ResourceLoader {
         Settings.OcrDataPath = "/usr/local/share";
       }
     }
+
 		initDone = true;
     return libsDir != null;
   }
@@ -534,18 +539,18 @@ public class ResourceLoader {
         log(lvl, "Running on Windows - checking system path!");
         String syspath = SysJNA.WinKernel32.getEnvironmentVariable("PATH");
         if (syspath == null) {
-          Sikulix.terminate(1);
+          Sikulix.terminate(999);
         } else {
           path = (new File(path).getAbsolutePath()).replaceAll("/", "\\");
           if (!syspath.toUpperCase().contains(path.toUpperCase())) {
             if (!SysJNA.WinKernel32.setEnvironmentVariable("PATH", path + ";" + syspath)) {
-              Sikulix.terminate(1);
+              Sikulix.terminate(999);
             }
             log(lvl, "Added libs dir to path: " + path);
             syspath = SysJNA.WinKernel32.getEnvironmentVariable("PATH");
             if (!syspath.toUpperCase().contains(path.toUpperCase())) {
               log(-1, "Adding to path did not work:\n%s", syspath);
-              System.exit(1);
+              Sikulix.terminate(999);
             }
             log(lvl, syspath.substring(0, Math.min(path.length()+50, syspath.length())) + "...");
           }
@@ -570,9 +575,6 @@ public class ResourceLoader {
                 log(lvl + 1, "copied to libs: jawt.dll");
               } catch (IOException ex) {
                 log(-1, "Fatal error 107: problem copying " + lib + "\n" + ex.getMessage());
-                popError("Trying to add jawt.dll from Java at\n"
-                        + javahome + " to SikuliX libs folder ..."
-                        + "... but did not work - see error log");
                 Sikulix.terminate(107);
               }
             }
@@ -597,50 +599,55 @@ public class ResourceLoader {
     return dir;
   }
 
-  //<editor-fold defaultstate="collapsed" desc="overwritten">
   /**
    * {@inheritDoc}
    * @param res what to export
-   * @param target target folder
+   * @param targetPath target folder
    * @return success
    */
-  public boolean export(String res, String target) {
+  public boolean export(String res, String targetPath) {
     String memx = mem;
     mem = "export";
-    log(lvl, "Trying to access package for exporting: %s\nto: %s", res, target);
-    String resOrg = res;
+    log(lvl, "Trying to access package for exporting: %s\nto: %s", res, targetPath);
     boolean fastReturn = false;
-    int prefix = 1 + resOrg.indexOf("#");
-    if (prefix > 0) {
-      res = res.replace("#", "/");
+    String pre = null, suf = "", tok = "";
+    String[] parts;
+    if (res.indexOf("#") != -1) {
+      tok = res.replace("#", "/");
+      parts = res.split("#");
+      if (parts.length > 2) {
+        log(-1, "export: invalid resource: %s", res);
+        return false;
+      }
+      pre = parts[0];
+      suf = parts[1];
       fastReturn = true;
     }
-    if (!extractingFromJar) {
-      prefix += jarPath.length();
-      if (Settings.isWindows()) {
-        prefix -= 1;
-      }
-    }
     URL currentURL = jarURL;
-    int lenOriginalURL = currentURL.toString().length();
-//TODO special export cases from jars not on class path
-    if (res.contains("tessdata") && tessURL != null) {
+    if (tok.contains("tessdata") && tessURL != null) {
       currentURL = tessURL;
-      prefix += currentURL.toString().length() - lenOriginalURL;
     }
-    List<String[]> entries = makePackageFileList(currentURL, res, true);
+    List<String[]> entries = makePackageFileList(currentURL, tok, true);
     if (entries == null || entries.isEmpty()) {
       return false;
     }
-    String targetName = null;
+    String targetName = null, source = null;
     File targetFile;
-    long targetDate;
+    long targetDate, entryDate;
     for (String[] e : entries) {
       try {
-        if (prefix > 0) {
-          targetFile = new File(target, e[0].substring(prefix));
+        entryDate = Long.valueOf(e[1]);
+        source = e[0];
+        if (pre != null) {
+          parts = source.split(tok);
+          if (parts.length == 2) {
+            targetName = suf + parts[1];
+          } else {
+            targetName = suf;
+          }
+          targetFile = new File(targetPath, targetName);
         } else {
-          targetFile = new File(target, e[0]);
+          targetFile = new File(targetPath, source);
         }
         if (targetFile.exists()) {
           targetDate = targetFile.lastModified();
@@ -648,11 +655,11 @@ public class ResourceLoader {
           targetDate = 0;
           targetFile.getParentFile().mkdirs();
         }
-        if (targetDate == 0 || targetDate < Long.valueOf(e[1])) {
-          extractResource(e[0], targetFile, extractingFromJar);
-          log(lvl + 2, "is from: %s (%d)", e[1], targetDate);
+        if (targetDate == 0 || targetDate < entryDate) {
+          extractResource(source, targetFile, extractingFromJar);
+          log(lvl + 1, "is from: %s (%d)", entryDate, targetDate);
         } else {
-          log(lvl + 2, "already in place: " + targetName);
+          log(lvl + 1, "already in place: " + targetName);
           if (fastReturn) {
             return true;
           }
@@ -666,10 +673,10 @@ public class ResourceLoader {
     return true;
   }
 
-  /**
-   * {@inheritDoc}
-   * @param args what to do
-   */
+//  /**
+//   * {@inheritDoc}
+//   * @param args what to do
+//   */
 //  public void install(String[] args) {
 //    mem = "install";
 //    log(lvl, "entered");
@@ -697,16 +704,19 @@ public class ResourceLoader {
       itIsJython = true;
   }
 
-  public void exportTessdata(boolean overwrite) {
+  public void exportTessdata(URL uTess) {
     if (tessURL == null) {
-      log(-1, "exportTessdata: no valid Tessdata.jar available");
+      if (uTess == null) {
+        log(lvl, "exportTessdata: no valid Tessdata.jar available until now");
+      } else {
+        tessURL = uTess;
+      }
     }
-    if (overwrite) {
-
-    }
-    if (!new File(Settings.OcrDataPath, "tessdata").exists()) {
-      log(lvl, "Trying to extract tessdata folder since it does not exist yet.");
-      export("META-INF/libs#tessdata", libPath);
+    log(lvl, "exportTessdata from: %s", (tessURL == null ? "deferred" : FileManager.slashify(tessURL.getPath(), false)));
+    FileManager.deleteFileOrFolder(new File(Settings.OcrDataPath, "tessdata").getAbsolutePath());
+    log(lvl, "Trying to extract tessdata folder since it does not exist yet.");
+    if (!export("META-INF/libs#tessdata", libPath)) {
+      log(-1, "exportTessdata: nothing exported --- text features will not work");
     }
   }
 
@@ -819,7 +829,6 @@ public class ResourceLoader {
     log(lvl + 1, libname);
     if (libPath == null) {
       log(-1, "Fatal Error 108: No libs directory available");
-      popError("Problem with SikuliX libs folder - see error log");
       Sikulix.terminate(108);
     }
     String mappedlib = System.mapLibraryName(libname);
@@ -832,7 +841,6 @@ public class ResourceLoader {
     if (!new File(lib).exists()) {
       if (!Settings.isLinux()) {
         log(-1, "Fatal Error 109: not found: " + lib);
-        popError("Problem with SikuliX libs folder - see error log");
         Sikulix.terminate(109);
       } else {
         lib = mappedlib;
@@ -855,13 +863,11 @@ public class ResourceLoader {
           return;
         }
       }
-      popError("Problem with SikuliX libs folder - see error log");
       Sikulix.terminate(110);
     }
-    log(lvl, "Now loaded: %s from: %s", libname, lib);
+    log(lvl, "Now loaded: %s from: \n%s", libname, lib);
     mem = memx;
   }
-  //</editor-fold>
 
   private File extractLibs(String targetDir, String libSource) {
     String memx = mem;
@@ -889,9 +895,9 @@ public class ResourceLoader {
         }
         if (targetDate == 0 || targetDate < Long.valueOf(e[1])) {
           extractResource(e[0], targetFile, extractingFromJar);
-          log(lvl + 2, "is from: %s (%d)", e[1], targetDate);
+          log(lvl + 1, "is from: %s (%d)", e[1], targetDate);
         } else {
-          log(lvl + 2, "already in place: " + targetName);
+          log(lvl + 1, "already in place: " + targetName);
         }
       } catch (IOException ex) {
         log(lvl, "IO-problem extracting: %s\n%s", targetName, ex.getMessage());
@@ -910,7 +916,7 @@ public class ResourceLoader {
       try {
         ZipInputStream zip = new ZipInputStream(jar.openStream());
         ZipEntry ze;
-        log(lvl, "from: " + jar.toString());
+        log(lvl, "from: %s", FileManager.slashify(jar.getPath(), false));
         while ((ze = zip.getNextEntry()) != null) {
           String entryName = ze.getName();
           if (entryName.startsWith(path)
@@ -989,8 +995,8 @@ public class ResourceLoader {
     if (!outputfile.getParentFile().exists()) {
       outputfile.getParentFile().mkdirs();
     }
-    log0(lvl + 2, "Extracting resource from: " + resourcename);
-    log0(lvl + 2, "Extracting to: " + outputfile.getAbsolutePath());
+    log0(lvl + 1, "Extracting resource from: " + resourcename);
+    log0(lvl + 1, "Extracting to: " + outputfile.getAbsolutePath());
     copyResource(in, outputfile);
     return outputfile;
   }
@@ -1066,11 +1072,4 @@ public class ResourceLoader {
       out.write(tmp, 0, len);
     }
   }
-
-	private void popError(String msg) {
-		log0(-1, msg);
-		if (!runningSikulixapi) {
-			Sikulix.popError(msg, "ResourceLoader: having problems ...");
-		}
-	}
 }

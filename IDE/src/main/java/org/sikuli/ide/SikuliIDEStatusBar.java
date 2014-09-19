@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -11,7 +11,6 @@ import javax.swing.*;
 
 import com.explodingpixels.macwidgets.plaf.EmphasizedLabelUI;
 import java.util.Date;
-import org.sikuli.basics.RunSetup;
 import org.sikuli.basics.Settings;
 
 class SikuliIDEStatusBar extends JPanel {

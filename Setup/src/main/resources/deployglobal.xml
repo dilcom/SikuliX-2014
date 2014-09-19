@@ -13,11 +13,12 @@
 
 	<groupId>com.sikulix</groupId>
 	<artifactId>sikulixdeploy</artifactId>
-	<version>1.1.0-Beta4-SNAPSHOT</version>
+	<version>1.1.0</version>
 
 	<packaging>pom</packaging>
 
 	<modules>
+		<module>Libsvision</module>
 		<module>Libswin</module>
 		<module>Libsmac</module>
 		<module>Libslux</module>

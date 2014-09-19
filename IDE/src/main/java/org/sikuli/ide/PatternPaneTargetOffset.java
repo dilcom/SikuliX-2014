@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -13,7 +13,6 @@ import java.io.*;
 import javax.imageio.*;
 import javax.swing.*;
 import javax.swing.event.*;
-import org.sikuli.basics.LoadingSpinner;
 import org.sikuli.basics.Debug;
 import org.sikuli.script.Finder;
 import org.sikuli.script.Location;

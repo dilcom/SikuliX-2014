@@ -28,11 +28,10 @@ import org.sikuli.basics.FileManager;
  */
 public class Screen extends Region implements EventObserver, IScreen {
 
-  private static String me = "Screen";
+  private static String me = "Screen: ";
   private static int lvl = 3;
-
   private static void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
+    Debug.logx(level, me + message, args);
   }
 
   protected static GraphicsEnvironment genv = null;
@@ -73,7 +72,7 @@ public class Screen extends Region implements EventObserver, IScreen {
     screens = new Screen[gdevs.length];
     if (gdevs.length == 0) {
       Debug.error("Screen: initScreens: GraphicsEnvironment has no screens");
-      Sikulix.endFatal(999);
+      Sikulix.terminate(999);
     }
     primaryScreen = -1;
     for (int i = 0; i < getNumberScreens(); i++) {
@@ -102,7 +101,7 @@ public class Screen extends Region implements EventObserver, IScreen {
       mouseRobot.setAutoDelay(10);
     } catch (AWTException e) {
       Debug.error("Can't initialize global Robot for Mouse: " + e.getMessage());
-      Sikulix.endFatal(999);
+      Sikulix.terminate(999);
     }
     if (!reset) {
       log(lvl - 1, "initScreens: basic initialization (%d Screen(s) found)", gdevs.length);

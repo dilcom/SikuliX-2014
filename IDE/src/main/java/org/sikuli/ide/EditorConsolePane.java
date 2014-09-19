@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -29,8 +29,9 @@ import javax.swing.text.*;
 import javax.swing.text.html.*;
 import javax.swing.JMenuItem;
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.IScriptRunner;
+import org.sikuli.scriptrunner.IScriptRunner;
 import org.sikuli.basics.Settings;
+import org.sikuli.scriptrunner.ScriptRunner;
 
 public class EditorConsolePane extends JPanel implements Runnable {
 
@@ -74,7 +75,6 @@ public class EditorConsolePane extends JPanel implements Runnable {
     }
   }
 
-
   public EditorConsolePane() {
     super();
     textArea = new JTextPane();
@@ -90,7 +90,7 @@ public class EditorConsolePane extends JPanel implements Runnable {
     if (ENABLE_IO_REDIRECT) {
 			Debug.log(3, "EditorConsolePane: starting redirection to message area");
       int npipes = 2;
-      NUM_PIPES = npipes * Settings.scriptRunner.size();
+      NUM_PIPES = npipes * ScriptRunner.scriptRunner.size();
       pin = new PipedInputStream[NUM_PIPES];
       reader = new Thread[NUM_PIPES];
       for (int i = 0; i < NUM_PIPES; i++) {
@@ -98,13 +98,13 @@ public class EditorConsolePane extends JPanel implements Runnable {
       }
 
       int irunner = 0;
-      for (IScriptRunner srunner : Settings.scriptRunner.values()) {
+      for (IScriptRunner srunner : ScriptRunner.scriptRunner.values()) {
 				Debug.log(3, "EditorConsolePane: redirection for %s", srunner.getName());
         if (srunner.doSomethingSpecial("redirect", Arrays.copyOfRange(pin, irunner*npipes, irunner*npipes+2))) {
           Debug.log(3, "EditorConsolePane: redirection success for %s", srunner.getName());
           quit = false; // signals the Threads that they should exit
 //TODO Hack to avoid repeated redirect of stdout/err
-          Settings.systemRedirected = true;
+          ScriptRunner.systemRedirected = true;
 
           // Starting two seperate threads to read from the PipedInputStreams
           for (int i = irunner * npipes; i < irunner * npipes + npipes; i++) {

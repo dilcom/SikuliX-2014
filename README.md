@@ -1,17 +1,11 @@
-[![RaiMan's Stuff](https://raw.github.com/RaiMan/SikuliX-2014-Docs/master/src/main/resources/docs/source/RaiManStuff64.png)](http://www.sikuli.org) SikuliX-2014 (current version 1.1.0)
+[![RaiMan's Stuff](https://raw.github.com/RaiMan/SikuliX-2014-Docs/master/src/main/resources/docs/source/RaiManStuff64.png)](http://www.sikuli.org) SikuliX-2014 (version 1.1.x)
 ============
 
-1.1.0-Beta4 is under development
+1.1.0 final is under development
 -----------------
 
-The Maven GroupID for the project is switched to **com.sikulix** (package names remain org.sikuli....)
+The Maven GroupID for the project now is **com.sikulix** (package names remain org.sikuli....)
 
-The structure is reduced to 3 main packages:
- - API: now contains Basics, Natives and OpenCV4Sikuli (gets sikulixapi.jar)
- - IDE: unchanged (gets sikulix.jar)
- - 3 LibsXxx: everything related to native stuff including the prebuilt libraries (gets sikulixlibsxxx.jar)
-
-The other packages are mostly unchanged.
 <hr>
 **sikulixapi.jar is half way up to Maven Central -- SNAPSHOTS available on OSSRH**<br>
 
@@ -21,9 +15,15 @@ The repository URL:<br>
 The coordinates:<br>
 `<groupId>com.sikulix</groupId>`<br>
 `<artifactId>sikulixapi</artifactId>`<br>
-`<version>1.1.0-Beta4-SNAPSHOT</version>`
+`<version>... see below ...</version>`
 
-find a **usage example** in [module TestRunMaven](https://github.com/RaiMan/SikuliX-2014/tree/master/TestRunMaven)
+available versions:<br>
+1.1.0-Beta4-SNAPSHOT (state of the respective target)<br>
+1.1.0-SNAPSHOT (the latest version towards final)
+
+find an **usage example** in [module TestRunMaven](https://github.com/RaiMan/SikuliX-2014/tree/master/TestRunMaven)
+
+**You might also visit the WIKI**
 
 <hr>
 **If you want to test the head of developement without the need to build from sources:** <br>
@@ -55,9 +55,9 @@ This Maven multi-module setup contains everything ...
 **Usage docs now on [ReadTheDocs](http://sikulix-2014.readthedocs.org/en/latest/#) (work in progress)**
 
 **Tools I use for developement:** <br />
-IDE with Maven support: [NetBeans 7.4](https://netbeans.org) (using Java 7 on all systems)<br />
+IDE with Maven support: [NetBeans 7.4/8.0](https://netbeans.org) (using Java 7 and 8)<br />
 GitHub support: [SourceTree]() (Mac + Windows)<br />
-CI Service: [Travis CI](http://travis-ci.com) <br />
+CI Service: [Travis CI](http://travis-ci.com) (not yet used)<br />
 Doc Service: [Read the Docs](https://readthedocs.org)<br />
 Main WebSite Service: [Weebly](http://www.weebly.com)<br />
 Private complementing Websites: [Host Europe](https://www.hosteurope.de)
@@ -71,68 +71,59 @@ Each folder (module) in this repo is a Maven project by itself with its own POM,
 
 **--- The top level modules (representing the Sikuli features) ---**
 
-**Module API**
+Module API (sikulixapi.jar)
+---
+
+**package org.sikuli.script** 
 
 The Java implementation comprising the API to access the top elements (Screen, Region, Pattern, Match, Image, ...) and their methods allowing to search for images and to act on points and matches simulating mouse and keyboard.
 
 The ready-to-use package `sikulixapi.jar` provides this API for Java programming and any Java aware scripting languages.
-<br>**this is the candidate for MavenCentral**
 
-**Basics** (now contained in API)
+**package org.sikuli.basics** 
 
 Implements basic utility and helper features used in the top level packages (basic file and folder handling, download features, jar access and handling, export of native libraries, parameter and preferences handling, update and extension handling, ...) and hence it is contained in all packages.
 
-As a special feature it comprises the `sikulixsetup.jar`, which is run after download to build the wanted SikuliX packages and make them ready-to-use on the specific system (Windows, Mac or Linux).
+**package org.sikuli.natives** 
 
-**Natives** (now contained in API)
+Contains the Java sources interface classes (JNI based, mainly SWIG generated) providing the implementation of the OpenCV and Tesseract usage and the implementation of some system specific features (HotKeyHandling, App class support,...).
 
-Contains the Java sources interface classes (JNI based, mainly SWIG generated) and the C++ sources providing the implementation of the OpenCV and Tesseract usage and the implementation of some system specific features (HotKeyHandling, App class support,...).
-
-A maven based build workflow for the native libraries (libVisionProxy, lib...Util and hotky support on Mac) is available in the module Libs, which is also the target module for the prebuilt libraries finally bundled with the top level packages.
-
-**OpenCV4SikuliX** (now contained in API)
+**package org.opencv. ...** 
 
 Sikuli's image search is based on features of [OpenCV](http://opencv.org). Starting with version 2.4.6 OpenCV provides a self-contained JNI interface to the OpenCV native libraries, allowing to use OpenCV features directly in Java (and hence making C++ programming obsolete for this).
 
 This module contains a specially configured Java/JNI OpenCV package (built using the standard OpenCV configure/make workflow) for use with the OpenCV features currently needed by Sikuli (core, imgproc, feature2d and highgui). The corresponding native library pack (currently Mac only) is contained in the module Libs.
 
-With the availability of the final version 1.1.0 the implementation of the OpenCV usage will be moved completely to the Java level. Until then the existing implementation in C++ is activated in the standard. The usage of the new implementation (in the new classes ImageFinder and ImageFind) can be switched on optinally for testing and developement.
+With the availability of the final version 1.1.0 the implementation of the OpenCV usage will be moved completely to the Java level. Until then the existing implementation in C++ is activated in the standard. The usage of the new implementation (in the new classes ImageFinder and ImageFind) can be switched on optionally for testing and developement.
 
 For Windows and Mac the native packages will again be pre-built and ready-to-use. For Linux there will be advices and scripts available to get the needed libraries ready.
 
 For more information on preparation and usage of the new OpenCV Java API [look here ...](https://github.com/RaiMan/SikuliX-2014/wiki/How-to-prepare-and-use-the-new-OpenCV-Java-API)
 
-**Modules LibsWin, LibsMac, LibsLux**
-
-The prebuilt native libraries for Windows, Mac and Linux (partially).<br />
-(gets `sikulixlibsxxx.jar` and is contained in `sikulixsetup.jar`)
-
-<br><br>`sikulixlibsxxx.jar` **are candidates for MavenCentral**
-
-**Module IDE**
+Module IDE (sikulix.jar)
+---
 
 Implements a GUI using Java, that allows to edit and run Sikuli scripts (currently Jython and JRuby are supported). It is an easy to use IDE focusing on the handling of the screenshots and images used in the typical Sikuli workflows.
 
 The package `sikulix.jar` is the top level package containing all other options (hence the follow up of `sikuli-ide.jar` known from former releases).
 
 After setup this package `sikulix.jar` contains the selected scripting interpreter(s) (Jython and/or JRuby), thus allowing to run Sikuli scripts out of the box from the commandline and providing interactive Sikuli aware scripting shells (hence it includes the functionality known from the `sikuli-script.jar` of former Sikuli(X) releases and is used the same way).
+
+In all cases the Jython and JRuby jar packages are loaded from MavenCentral if needed.
+
+If you want to experiment with the special JRuby support (rSpec, cucumber, ...) you have to look into the modules JRubyAddOns and JRubyGem. Both have to be built manually if needed (not contained in the local developement build).
 <hr/>
 
-**--- The helper/utility modules (intended for internal use only) ---**
+**--- The helper/utility modules (intended for internal and/or developement use only) ---**
 
 **Module Setup**
 
 It produces the fat jar `sikulixsetup.jar` being the root downloadable artefact. It is needed to setup the SikuliX packages to be used on the local systems. Though the preferred setup is to let setup download the needed stuff on the fly, there is the possibility to run setup completely local/offline after having downloaded the needed stuff manually ([look here ...](http://www.sikulix.com/quickstart.html#qs2)) 
 
-**Module Jython**
+**Modules LibsWin, LibsMac, LibsLux**
 
-Implements Jython support for the IDE and for running scripts using Python as scripting language.<br />
-(contained in package sikulix.jar)
-
-**Module JRuby**
-
-Implements JRuby support for the IDE and for running scripts using Ruby as scripting language.<br />
-(optionally contained in package sikulix.jar)
+The prebuilt native libraries for Windows, Mac and Linux (partially).<br />
+(gets `sikulixlibsxxx.jar` and are contained in `sikulixsetup.jar`)
 
 **Module Tesseract4SikuliX**
 
@@ -155,10 +146,6 @@ This is an adaption of the work [Jygments](https://code.google.com/p/jygments/) 
 Currently as a convenience the standard tessdata folder needed for using Tesseract 3.0.<br />
 (will be downloaded on request during a Sikuli setup)
 
-**Module MacApp**
-
-A template Sikuli-IDE.app, that is downloaded on request and made ready-to-use during Sikuli setup.
-
 **Modules ...Fat**
 
 Existing for IDE, API, Jython and JRuby. These build so called fat jars, that contain all needed dependency jars and are only intended for the build/setup process.
@@ -167,6 +154,10 @@ Existing for IDE, API, Jython and JRuby. These build so called fat jars, that co
 
 The source files for the textual documentation (built with PythonSphinx based on .rst files) and a ready-to-use HTML version as well as a HTML version of the JavaDocs of the main public Java API.<br />
 (is downloaded and made ready-to-use-locally during Sikuli setup)
+
+**Module TestRunMaven**
+
+A sample implementation of a Maven project, that loads the sikulixapi.jar from MavenCentral (currently still OSSRH).
 
 <hr/>
 
@@ -192,8 +183,6 @@ In the root directory of the repo run <br />
 which builds all modules and installs the artifacts into your local Maven repository.
 
 **Be aware** This mandatory first step will add "tons" of additional stuff from Maven Central repository to your local Maven repository, especially when you are a first time Maven user.
-
-If you want jars containing the sources of the respective modules and/or containing the javadocs you can use the following profile switches: `mvn clean install -PwithSource,withDocs` (but locally, there might not be much sense in that ;-)
 
 More details for Maven aspects you can find [here ...](https://github.com/RaiMan/SikuliX-2014/wiki/More-information-related-to-the-Maven-aspects-in-this-project)
 

@@ -4,20 +4,27 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.MouseEvent;
 import java.lang.reflect.Method;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 import org.sikuli.basics.Debug;
-import org.sikuli.basics.Settings;
-import org.sikuli.basics.Sikulix;
+import org.sikuli.basics.FileManager;
 import org.sikuli.script.Image;
 import org.sikuli.script.ImagePath;
+import org.sikuli.script.Sikulix;
+import org.sikuli.scriptrunner.ScriptRunner;
 
 public class SikuliIDEPopUpMenu extends JPopupMenu {
 
-  private static String me = "SikuliIDEPopUpMenu";
+  private static String me = "SikuliIDEPopUpMenu: ";
   private static int lvl = 3;
+  private static void log(int level, String message, Object... args) {
+    Debug.logx(level, me + message, args);
+  }
+
   private String popType;
   private boolean validMenu = true;
 
@@ -27,10 +34,12 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
   private EditorPane refEditorPane = null;
   public static final String POP_LINE = "POP_LINE";
   private EditorLineNumberView refLineNumberView = null;
-  
+
   private static String[] selOptionsType = null;
 
   private MouseEvent mouseTrigger;
+  private int menuCount = 0;
+  private Map<String, Integer> menus = new HashMap<String, Integer>();
 
   /**
    * Get the value of isValidMenu
@@ -39,10 +48,6 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
    */
   public boolean isValidMenu() {
     return validMenu;
-  }
-
-  private static void log(int level, String message, Object... args) {
-    Debug.logx(level, "", me + ": " + message, args);
   }
 
   public SikuliIDEPopUpMenu(String pType, Object ref) {
@@ -113,6 +118,11 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
     return createMenuItem(new JMenuItem(name), listener);
   }
 
+  private void createMenuSeperator() {
+    menuCount++;
+    addSeparator();
+  }
+
   private void setMenuText(int index, String text) {
     ((JMenuItem) getComponent(index)).setText(text);
   }
@@ -129,6 +139,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
     protected Method actMethod = null;
     protected String action;
+    protected int menuPos;
 
     public MenuAction() {
     }
@@ -139,6 +150,8 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
         paramsWithEvent[0] = Class.forName("java.awt.event.ActionEvent");
         actMethod = this.getClass().getMethod(item, paramsWithEvent);
         action = item;
+        menuPos = menuCount++;
+        menus.put(item, menuPos);
       } catch (ClassNotFoundException cnfe) {
         log(-1, "Can't find menu action: %s\n" + cnfe, item);
       }
@@ -148,7 +161,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
     public void actionPerformed(ActionEvent e) {
       if (actMethod != null) {
         try {
-          log(lvl, "MenuAction." + action);
+          log(lvl, "PopMenuAction." + action);
           Object[] params = new Object[1];
           params[0] = e;
           actMethod.invoke(this, params);
@@ -163,18 +176,18 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
   private void popTabMenu() {
     try {
       add(createMenuItem("Set Type", new PopTabAction(PopTabAction.SET_TYPE)));
-      addSeparator();
+      createMenuSeperator();
       add(createMenuItem("Move Tab", new PopTabAction(PopTabAction.MOVE_TAB)));
       add(createMenuItem("Duplicate", new PopTabAction(PopTabAction.DUPLICATE)));
       add(createMenuItem("Open", new PopTabAction(PopTabAction.OPEN)));
       add(createMenuItem("Open left", new PopTabAction(PopTabAction.OPENL)));
-      addSeparator();
+      createMenuSeperator();
       add(createMenuItem("Save", new PopTabAction(PopTabAction.SAVE)));
       add(createMenuItem("SaveAs", new PopTabAction(PopTabAction.SAVE_AS)));
-      addSeparator();
+      createMenuSeperator();
       add(createMenuItem("Run", new PopTabAction(PopTabAction.RUN)));
       add(createMenuItem("Run Slowly", new PopTabAction(PopTabAction.RUN_SLOW)));
-      addSeparator();
+      createMenuSeperator();
       add(createMenuItem("Reset", new PopTabAction(PopTabAction.RESET)));
 
     } catch (NoSuchMethodException ex) {
@@ -194,7 +207,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
     static final String RUN = "doRun";
     static final String RUN_SLOW = "doRunSlow";
     static final String RESET = "doReset";
-    
+
     public PopTabAction() {
       super();
     }
@@ -209,7 +222,7 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 			String error = "";
 			EditorPane cp = SikuliIDE.getInstance().getCurrentCodePane();
       if (selOptionsType == null) {
-        Set<String> types = Settings.TypeEndings.keySet();
+        Set<String> types = ScriptRunner.typeEndings.keySet();
         selOptionsType = new String[types.size()];
         int i = 0;
         for (String e : types) {
@@ -231,9 +244,9 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 				SikuliIDE.getStatusbar().setCurrentContentType(currentType);
 				return;
 			}
-			String targetEnding = Settings.TypeEndings.get(targetType);
-			if (cp.reparseBefore() != null) {
-				if (!cp.reparseCheckContent()) {
+			String targetEnding = ScriptRunner.typeEndings.get(targetType);
+			if (cp.getText().length() > 0) {
+//				if (!cp.reparseCheckContent()) {
 					if (!Sikulix.popAsk(String.format(
 									"Switch to %s requested, but tab is not empty!\n"
 									+ "Click YES, to discard content and switch\n"
@@ -241,7 +254,6 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 									targetType))) {
 						error = ": with errors";
 					}
-				}
 			}
 			if (error.isEmpty()) {
 				cp.reInit(targetEnding);
@@ -256,28 +268,62 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 		}
 
     public void doMoveTab(ActionEvent ae) throws NoSuchMethodException {
-      log(lvl, "doMoveTab: entered");
-      if (getMenuText(0).contains("Insert")) {
-        log(lvl, "doMoveTab: insert");
+      if (ae.getActionCommand().contains("Insert")) {
+        log(lvl, "doMoveTab: entered at insert");
         doLoad(refTab.getSelectedIndex()+1);
-        setMenuText(2, "Move Tab");
-        setMenuText(5, "Open left");
+        resetMenuAfterMoveTab();
         return;
       }
+      log(lvl, "doMoveTab: entered at move");
       refTab.resetLastClosed();
-      boolean success = refTab.fireCloseTab(mouseTrigger, refTab.getSelectedIndex());
-      log(lvl, "doMoveTab: success = %s", success);
-      if (success && refTab.getLastClosed() != null) {
-        setMenuText(2, "Insert Tab");
-        setMenuText(5, "Insert Left");
+      if (SikuliIDE.getInstance().getCurrentCodePane().isSourceBundleTemp()) {
+        log(-1, "Untitled tab cannot be moved");
+        return;
       }
+//      fireIDEFileMenu("SAVE");
+      boolean success = refTab.fireCloseTab(mouseTrigger, refTab.getSelectedIndex());
+      if (success && refTab.getLastClosed() != null) {
+				refTab.isLastClosedByMove = true;
+        setMenuText(menus.get(MOVE_TAB), "Insert Right");
+        setMenuText(menus.get(OPENL), "Insert Left");
+        log(lvl, "doMoveTab: preparation success");
+      } else {
+        log(-1, "doMoveTab: preperation aborted");
+      }
+    }
+
+    private void checkAndResetMoveTab() throws NoSuchMethodException {
+      if (refTab.isLastClosedByMove) {
+        log (-1, "doMoveTab: is prepared and will be aborted");
+        int currentTab = refTab.getSelectedIndex();
+        doLoad(refTab.getSelectedIndex()+1);
+        refTab.setSelectedIndex(currentTab);
+      }
+      resetMenuAfterMoveTab();
+    }
+
+    private void resetMenuAfterMoveTab() {
+      setMenuText(menus.get(MOVE_TAB), "Move Tab");
+      setMenuText(menus.get(OPENL), "Open left");
+      refTab.resetLastClosed();
     }
 
     public void doDuplicate(ActionEvent ae) throws NoSuchMethodException {
       log(lvl, "doDuplicate: entered");
+      EditorPane ep = SikuliIDE.getInstance().getCurrentCodePane();
+      checkAndResetMoveTab();
       fireIDEFileMenu("SAVE");
+      if (ep.isSourceBundleTemp()) {
+        log(-1, "Untitled tab cannot be duplicated");
+        return;
+      }
+      String bundleOld = ep.getBundlePath();
       fireIDEFileMenu("SAVE_AS");
-      setMenuText(5, "Insert left");
+      if (FileManager.pathEquals(bundleOld, ep.getBundlePath())) {
+        log(-1,"duplicate must use different project name");
+        return;
+      }
+      setMenuText(menus.get(OPENL), "Insert left");
       doOpenLeft(null);
     }
 
@@ -289,20 +335,18 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
     public void doOpen(ActionEvent ae) throws NoSuchMethodException {
       log(lvl, "doOpen: entered");
-      refTab.resetLastClosed();
+      checkAndResetMoveTab();
       doLoad(refTab.getSelectedIndex()+1);
     }
 
     public void doOpenLeft(ActionEvent ae) throws NoSuchMethodException {
-      log(lvl, "doOpenLeft: entered");
       if (getMenuText(5).contains("Insert")) {
-        log(lvl, "doMoveTab: insert left");
+        log(lvl, "doOpenLeft: entered at insert left");
         doLoad(refTab.getSelectedIndex());
-        setMenuText(2, "Move Tab");
-        setMenuText(5, "Open left");
+        resetMenuAfterMoveTab();
         return;
       }
-      refTab.resetLastClosed();
+      log(lvl, "doOpenLeft: entered");
       doLoad(refTab.getSelectedIndex());
     }
 
@@ -328,9 +372,11 @@ public class SikuliIDEPopUpMenu extends JPopupMenu {
 
     public void doReset(ActionEvent ae) throws NoSuchMethodException {
       log(lvl, "Reset: entered");
+      checkAndResetMoveTab();
       Image.dump();
       ImagePath.reset();
       Image.dump();
+			SikuliIDE.getInstance().getCurrentCodePane().reparse();
   }
 	}
 

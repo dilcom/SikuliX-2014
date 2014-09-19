@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -10,6 +10,7 @@ import java.io.FileNotFoundException;
 import java.io.PrintStream;
 import java.lang.reflect.Method;
 import java.text.DateFormat;
+import java.util.Arrays;
 import java.util.Date;
 
 /**
@@ -33,6 +34,7 @@ public class Debug {
 
   private static final int DEFAULT_LEVEL = 1;
   private static int DEBUG_LEVEL = DEFAULT_LEVEL;
+	private static boolean loggerRedirectSupported = true;
   private long _beginTime = 0;
   private String _message;
   private String _title = null;
@@ -44,6 +46,9 @@ public class Debug {
 
 	private static Object privateLogger = null;
 	private static boolean privateLoggerPrefixAll = true;
+	private static Method privateLoggerUser = null;
+	private static String privateLoggerUserName = "";
+	private static String privateLoggerUserPrefix = "";
 	private static Method privateLoggerInfo = null;
 	private static String privateLoggerInfoName = "";
 	private static final String infoPrefix = "info";
@@ -60,6 +65,8 @@ public class Debug {
 	private static String privateLoggerDebugName = "";
 	private static final String debugPrefix = "debug";
 	private static String privateLoggerDebugPrefix = "";
+	private static boolean isJython;
+	private static boolean isJRuby;
 
 	private static PrintStream redirectedOut = null, redirectedErr = null;
 
@@ -88,8 +95,9 @@ public class Debug {
 	 * @param logger the logger object
 	 */
 	public static void setLogger(Object logger) {
-		privateLogger = logger;
+		if (!doSetLogger(logger)) return;
 		privateLoggerPrefixAll = true;
+    logx(3, "Debug: setLogger %s", logger);
 	}
 
 	/**
@@ -97,8 +105,23 @@ public class Debug {
 	 * @param logger the logger object
 	 */
 	public static void setLoggerNoPrefix(Object logger) {
-		privateLogger = logger;
+		if (!doSetLogger(logger)) return;
 		privateLoggerPrefixAll = false;
+	}
+
+	private static boolean doSetLogger(Object logger) {
+		String className = logger.getClass().getName();
+		boolean success = true;
+		isJython = className.contains("org.python");
+		isJRuby = className.contains("org.jruby");
+		if ( isJRuby ) {
+			logx(3, "Debug: setLogger: given instance's class: %s", className);
+			error("setLogger: not yet supported in JRuby script");
+			loggerRedirectSupported=false;
+			success = false;
+		}
+		privateLogger = logger;
+		return success;
 	}
 
 	/**
@@ -108,17 +131,113 @@ public class Debug {
 	 * @param mAll name of the method where the message should be sent
 	 * @return true if the method is available false otherwise	 */
 	public static boolean setLoggerAll(String mAll) {
+		if (!loggerRedirectSupported) {
+			logx(3, "Debug: setLoggerAll: logger redirect not supported");
+			return false;
+		}
 		if (privateLogger != null) {
+      logx(3, "Debug.setLoggerAll: %s", mAll);
 			boolean success = true;
+			success &= setLoggerUser(mAll);
 			success &= setLoggerInfo(mAll);
 			success &= setLoggerAction(mAll);
 			success &= setLoggerError(mAll);
 			success &= setLoggerDebug(mAll);
 			return success;
-		} else {
-			error("Debug: setLoggerAll: no logger specified yet");
 		}
 		return false;
+	}
+
+	private static boolean doSetLoggerCallback(String mName, CallbackType type) {
+		if (privateLogger == null) {
+			error("Debug: setLogger: no logger specified yet");
+			return false;
+		}
+		if (!loggerRedirectSupported) {
+			logx(3, "Debug: setLogger: %s (%s) logger redirect not supported", mName, type);
+		}
+		if (isJython) {
+			Object[] args = new Object[]{privateLogger, mName, type.toString()};
+			if (!checkCallback(args)) {
+				logx(3, "Debug: setLogger: Jython: checkCallback returned: %s", args[0]);
+				return false;
+			}
+		}
+		try {
+			if (type == CallbackType.INFO) {
+				if ( !isJython && !isJRuby ) {
+					privateLoggerInfo = privateLogger.getClass().getMethod(mName, new Class[]{String.class});
+				}
+				privateLoggerInfoName = mName;
+				return true;
+			} else if (type == CallbackType.ACTION) {
+				if ( !isJython && !isJRuby ) {
+					privateLoggerAction = privateLogger.getClass().getMethod(mName, new Class[]{String.class});
+				}
+				privateLoggerActionName = mName;
+				return true;
+			} else if (type == CallbackType.ERROR) {
+				if ( !isJython && !isJRuby ) {
+					privateLoggerError = privateLogger.getClass().getMethod(mName, new Class[]{String.class});
+				}
+				privateLoggerErrorName = mName;
+				return true;
+			} else if (type == CallbackType.DEBUG) {
+				if ( !isJython && !isJRuby ) {
+					privateLoggerDebug = privateLogger.getClass().getMethod(mName, new Class[]{String.class});
+				}
+				privateLoggerDebugName = mName;
+				return true;
+			} else if (type == CallbackType.USER) {
+				if ( !isJython && !isJRuby ) {
+					privateLoggerUser = privateLogger.getClass().getMethod(mName, new Class[]{String.class});
+				}
+				privateLoggerUserName = mName;
+				return true;
+			} else {
+				return false;
+			}
+		} catch (Exception e) {
+			error("Debug: setLoggerInfo: redirecting to %s failed: \n%s", mName, e.getMessage());
+		}
+		return false;
+	}
+
+  private static boolean checkCallback(Object[] args) {
+    return runnerDoSomethingSpecial("checkCallback", args);
+  }
+
+  private static boolean runCallback(String pln, String msg) {
+    return runnerDoSomethingSpecial("runLoggerCallback", new Object[]{privateLogger, pln, msg});
+  }
+
+  private static boolean runnerDoSomethingSpecial(String action, Object[] args) {
+    try {
+      Class ScriptRunner = Class.forName("org.sikuli.scriptrunner.ScriptRunner");
+      Method doSomethingSpecial = ScriptRunner.getMethod("doSomethingSpecial",
+              new Class[]{String.class, Object[].class});
+      Object ret = doSomethingSpecial.invoke(ScriptRunner, new Object[]{action, args});
+      return (Boolean) ret;
+    } catch (Exception ex) {
+      log(-100, "Debug.runnerDoSomethingSpecial: Fatal Error 999: could not be run!");
+      System.exit(999);
+    }
+    return false;
+  }
+  /**
+	 * specify the target method for redirection of Sikuli's user log messages [user]<br>
+	 * must be the name of an instance method of the previously defined logger and<br>
+	 * must accept exactly one string parameter, that contains the info message
+	 * @param mUser name of the method where the message should be sent
+	 * <br>reset to default logging by either null or empty string
+	 * @return true if the method is available false otherwise
+	 */
+	public static boolean setLoggerUser(String mUser) {
+		if (mUser == null || mUser.isEmpty()) {
+			privateLoggerUserName = "";
+			return true;
+		}
+		return doSetLoggerCallback(mUser, CallbackType.USER);
 	}
 
 	/**
@@ -126,22 +245,15 @@ public class Debug {
 	 * must be the name of an instance method of the previously defined logger and<br>
 	 * must accept exactly one string parameter, that contains the info message
 	 * @param mInfo name of the method where the message should be sent
+	 * <br>reset to default logging by either null or empty string
 	 * @return true if the method is available false otherwise
 	 */
 	public static boolean setLoggerInfo(String mInfo) {
-		if (privateLogger != null) {
-			try {
-				privateLoggerInfo = privateLogger.getClass().getMethod(mInfo, new Class[]{String.class});
-				privateLoggerInfoName = mInfo;
-				return true;
-			} catch (Exception e) {
-				error("Debug: setLoggerInfo: redirecting to %s failed: \n%s", mInfo, e.getMessage());
-				return false;
-			}
-		} else {
-			error("Debug: setLoggerInfo: no logger specified yet");
+		if (mInfo == null || mInfo.isEmpty()) {
+			privateLoggerInfoName = "";
+			return true;
 		}
-		return false;
+		return doSetLoggerCallback(mInfo, CallbackType.INFO);
 	}
 
 	/**
@@ -149,21 +261,15 @@ public class Debug {
 	 * must be the name of an instance method of the previously defined logger and<br>
 	 * must accept exactly one string parameter, that contains the info message
 	 * @param mAction name of the method where the message should be sent
+	 * <br>reset to default logging by either null or empty string
 	 * @return true if the method is available false otherwise
 	 */
 	public static boolean setLoggerAction(String mAction) {
-		if (privateLogger != null) {
-			try {
-				privateLoggerAction = privateLogger.getClass().getMethod(mAction, new Class[]{String.class});
-				privateLoggerActionName = mAction;
-				return true;
-			} catch (Exception e) {
-				return false;
-			}
-		} else {
-			error("Debug: setLoggerAction: no logger specified yet");
+		if (mAction == null || mAction.isEmpty()) {
+			privateLoggerInfoName = "";
+			return true;
 		}
-		return false;
+		return doSetLoggerCallback(mAction, CallbackType.ACTION);
 	}
 
 	/**
@@ -171,21 +277,15 @@ public class Debug {
 	 * must be the name of an instance method of the previously defined logger and<br>
 	 * must accept exactly one string parameter, that contains the info message
 	 * @param mError name of the method where the message should be sent
+	 * <br>reset to default logging by either null or empty string
 	 * @return true if the method is available false otherwise
 	 */
 	public static boolean setLoggerError(String mError) {
-		if (privateLogger != null) {
-			try {
-				privateLoggerError = privateLogger.getClass().getMethod(mError, new Class[]{String.class});
-				privateLoggerErrorName = mError;
-				return true;
-			} catch (Exception e) {
-				return false;
-			}
-		} else {
-			error("Debug: setLoggerError: no logger specified yet");
+		if (mError == null || mError.isEmpty()) {
+			privateLoggerInfoName = "";
+			return true;
 		}
-		return false;
+		return doSetLoggerCallback(mError, CallbackType.ERROR);
 	}
 
 	/**
@@ -193,21 +293,15 @@ public class Debug {
 	 * must be the name of an instance method of the previously defined logger and<br>
 	 * must accept exactly one string parameter, that contains the info message
 	 * @param mDebug name of the method where the message should be sent
+	 * <br>reset to default logging by either null or empty string
 	 * @return true if the method is available false otherwise
 	 */
 	public static boolean setLoggerDebug(String mDebug) {
-		if (privateLogger != null) {
-			try {
-				privateLoggerDebug = privateLogger.getClass().getMethod(mDebug, new Class[]{String.class});
-				privateLoggerDebugName = mDebug;
-				return true;
-			} catch (Exception e) {
-				return false;
-			}
-		} else {
-			error("Debug: setLoggerError: no logger specified yet");
+		if (mDebug == null || mDebug.isEmpty()) {
+			privateLoggerInfoName = "";
+			return true;
 		}
-		return false;
+		return doSetLoggerCallback(mDebug, CallbackType.DEBUG);
 	}
 
 	public static void saveRedirected(PrintStream rdo, PrintStream rde) {
@@ -364,7 +458,75 @@ public class Debug {
     }
   }
 
-  /**
+	private static boolean doRedirect(CallbackType type, String pre, String message, Object... args) {
+		boolean success = false;
+		String error = "";
+		if (privateLogger != null) {
+			String prefix = "", pln = "";
+			Method plf = null;
+			if (type == CallbackType.INFO && !privateLoggerInfoName.isEmpty()) {
+				prefix = privateLoggerPrefixAll ? privateLoggerInfoPrefix : "";
+				plf = privateLoggerInfo;
+				pln = privateLoggerInfoName;
+			} else if (type == CallbackType.ACTION && !privateLoggerActionName.isEmpty()) {
+				prefix = privateLoggerPrefixAll ? privateLoggerActionPrefix : "";
+				plf = privateLoggerAction;
+				pln = privateLoggerActionName;
+			} else if (type == CallbackType.ERROR && !privateLoggerErrorName.isEmpty()) {
+				prefix = privateLoggerPrefixAll ? privateLoggerErrorPrefix : "";
+				plf = privateLoggerError;
+				pln = privateLoggerErrorName;
+			} else if (type == CallbackType.DEBUG && !privateLoggerDebugName.isEmpty()) {
+				prefix = privateLoggerPrefixAll ?
+								(privateLoggerDebugPrefix.isEmpty() ? pre : privateLoggerDebugPrefix) : "";
+				plf = privateLoggerDebug;
+				pln = privateLoggerDebugName;
+			} else if (type == CallbackType.USER && !privateLoggerUserName.isEmpty()) {
+				prefix = privateLoggerPrefixAll ?
+									(privateLoggerUserPrefix.isEmpty() ? pre : privateLoggerUserPrefix) : "";
+				plf = privateLoggerUser;
+				pln = privateLoggerUserName;
+			}
+			if (!pln.isEmpty()) {
+				String msg = null;
+				if (args == null) {
+					msg = prefix + message;
+				} else {
+					msg = String.format(prefix + message, args);
+				}
+				if (isJython) {
+					success = runCallback(pln, msg);
+				} else if (isJRuby) {
+					success = false;
+				} else {
+					try {
+						plf.invoke(privateLogger,
+										new Object[]{msg});
+						return true;
+					} catch (Exception e) {
+						error = ": " + e.getMessage();
+						success = false;
+					}
+				}
+				if (!success) {
+					Debug.error("calling (%s) logger.%s failed - resetting to default%s", type, pln, error);
+					if (type == CallbackType.INFO) {
+						privateLoggerInfoName = "";
+					} else if (type == CallbackType.ACTION) {
+						privateLoggerActionName = "";
+					} else if (type == CallbackType.ERROR) {
+						privateLoggerErrorName = "";
+					} else if (type == CallbackType.DEBUG) {
+						privateLoggerDebugName = "";
+					} else if (type == CallbackType.USER) {
+						privateLoggerUserName = "";
+					}
+				}
+			}
+		}
+		return success;
+	}
+	/**
    * Sikuli messages from actions like click, ...<br> switch on/off: Settings.ActionLogs
    *
    * @param message String or format string (String.format)
@@ -372,17 +534,8 @@ public class Debug {
    */
   public static void action(String message, Object... args) {
     if (Settings.ActionLogs) {
-			if (privateLogger != null && privateLoggerAction != null) {
-				String prefix = privateLoggerPrefixAll ? privateLoggerActionPrefix : "";
-				try {
-					privateLoggerAction.invoke(privateLogger,
-									new Object[]{String.format(prefix + message, args)});
-					return;
-				} catch (Exception e) {
-					Debug.error("calling logger.%s failed - resetting to default: %s\n",
-									privateLoggerActionName, e.getMessage());
-					privateLoggerAction = null;
-				}
+			if (doRedirect(CallbackType.ACTION, "", message, args)) {
+				return;
 			}
       log(-1, actionPrefix, message, args);
     }
@@ -407,17 +560,8 @@ public class Debug {
    */
   public static void info(String message, Object... args) {
     if (Settings.InfoLogs) {
-			if (privateLogger != null && privateLoggerInfo != null) {
-				String prefix = privateLoggerPrefixAll ? privateLoggerInfoPrefix : "";
-				try {
-					privateLoggerInfo.invoke(privateLogger,
-									new Object[]{String.format(prefix + message, args)});
-					return;
-				} catch (Exception e) {
-					Debug.error("calling logger.%s failed - resetting to default: %s\n",
-									privateLoggerInfoName, e.getMessage());
-					privateLoggerInfo = null;
-				}
+			if (doRedirect(CallbackType.INFO, "", message, args)) {
+				return;
 			}
       log(-1, infoPrefix, message, args);
     }
@@ -430,17 +574,8 @@ public class Debug {
    * @param args to use with format string
    */
 	public static void error(String message, Object... args) {
-		if (privateLogger != null && privateLoggerError != null) {
-			String prefix = privateLoggerPrefixAll ? privateLoggerErrorPrefix : "";
-			try {
-				privateLoggerError.invoke(privateLogger,
-								new Object[]{String.format(prefix + message, args)});
-				return;
-			} catch (Exception e) {
-				Debug.error("calling logger.%s failed - resetting to default: %s\n",
-								privateLoggerErrorName, e.getMessage());
-				privateLoggerError = null;
-			}
+		if (doRedirect(CallbackType.ERROR, "", message, args)) {
+			return;
 		}
 		log(-1, errorPrefix, message, args);
 	}
@@ -452,6 +587,11 @@ public class Debug {
    * @param args to use with format string
    */
   public static void test(String message, Object... args) {
+		if (message.contains("#returned#")) {
+			message = message.replace("#returned#", "returned: " +
+							((Boolean) args[0] ? "true" : "false"));
+			args = Arrays.copyOfRange(args, 1, args.length);
+		}
     log(-1, "test", message, args);
   }
 
@@ -503,12 +643,11 @@ public class Debug {
 	/**
 	 * INTERNAL USE: special debug messages
 	 * @param level value
-	 * @param prefix not used
 	 * @param message text or format string
 	 * @param args for use with format string
 	 */
-	public static void logx(int level, String prefix, String message, Object... args) {
-    if (level == -1) {
+	public static void logx(int level, String message, Object... args) {
+    if (level == -1 || level == -100) {
       log(level, errorPrefix, message, args);
     } else if (level == -2) {
       log(level, actionPrefix, message, args);
@@ -527,20 +666,15 @@ public class Debug {
       }
 			prefix = "[" + prefix + stime + "] ";
       sout = String.format(message, args);
-			if (level > -99 && privateLogger != null && privateLoggerDebug != null) {
-				try {
-					if (privateLoggerPrefixAll) {
-						sout = prefix + sout;
-					} else {
-						sout = privateLoggerDebugPrefix + sout;
-					}
-					privateLoggerDebug.invoke(privateLogger, new Object[]{sout});
-					return;
-				} catch (Exception e) {
-					Debug.error("calling logger.%s failed - resetting to default: %s\n",
-									privateLoggerDebugName, e.getMessage());
-					privateLoggerDebug = null;
-				}
+			if (level > -99) {
+				if (doRedirect(CallbackType.DEBUG, prefix, sout, null)) {
+          return;
+        }
+			}
+			if (level == -99) {
+				if (doRedirect(CallbackType.USER, prefix, sout, null)) {
+          return;
+        }
 			}
 			if (level == -99 && printoutuser != null) {
         printoutuser.print(prefix + sout);
@@ -552,7 +686,7 @@ public class Debug {
         System.out.print(prefix + sout);
         System.out.println();
       }
-			if (level == -1 || level > 2) {
+			if (level == -1 || level == -100 || level > 2) {
 				out(prefix + sout);
 			}
     }
@@ -678,4 +812,8 @@ public class Debug {
     }
     return dt;
   }
+
+	private static enum CallbackType {
+		INFO, ACTION, ERROR, DEBUG, USER;
+	}
 }

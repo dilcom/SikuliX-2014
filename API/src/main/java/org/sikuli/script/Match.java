@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -36,6 +36,14 @@ public class Match extends Region implements Comparable<Match> {
     lastFindTime = ftime;
     lastSearchTime = stime;
   }
+
+	/**
+	 *
+	 * @return this Match's actual waiting time from last successful find
+	 */
+	public long getTime() {
+		return lastFindTime;
+	}
 
   /**
    * create a copy of Match object<br>
@@ -201,7 +209,7 @@ public class Match extends Region implements Comparable<Match> {
   public String getText() {
     return ocrText;
   }
-	
+
   @Override
   public int compareTo(Match m) {
     if (simScore != m.simScore) {

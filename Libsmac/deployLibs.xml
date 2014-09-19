@@ -13,7 +13,7 @@
 
 	<groupId>com.sikulix</groupId>
 	<artifactId>sikulixlibsmac</artifactId>
-	<version>1.1.0-Beta4-SNAPSHOT</version>
+	<version>1.1.0-SNAPSHOT</version>
 
 	<packaging>jar</packaging>
 
@@ -49,6 +49,14 @@
     </repository>
   </distributionManagement>
 
+	<dependencies>
+		<dependency>
+			<groupId>com.sikulix</groupId>
+			<artifactId>sikulixlibsvision</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+	</dependencies>
+
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<timestamp>${maven.build.timestamp}</timestamp>
@@ -63,7 +71,7 @@
 				<configuration>
 					<archive>
 						<manifest>
-							<mainClass>org.sikuli.script.SikuliX</mainClass>
+							<mainClass>org.sikuli.libsmac.Sikulix</mainClass>
 						</manifest>
 					</archive>
 				</configuration>

@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan 2013
@@ -28,6 +28,8 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import org.json.simple.JSONValue;
 import org.sikuli.basics.Debug;
+import org.sikuli.basics.Debug;
+import org.sikuli.basics.Settings;
 import org.sikuli.basics.Settings;
 
 public class ExtensionManagerFrame extends JFrame {

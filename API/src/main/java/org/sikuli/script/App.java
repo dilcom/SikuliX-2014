@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -393,7 +393,7 @@ public class App {
    }
 
    /**
-    * Enumeration for the transfert type property in MIME types (InputStream, CharBuffer, etc.)
+    * Enumeration for the transferScriptt type property in MIME types (InputStream, CharBuffer, etc.)
     */
    public static class TransferType {
       private Class dataClass;

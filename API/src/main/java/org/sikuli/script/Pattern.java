@@ -1,5 +1,5 @@
 /*
- * Copyright 2010-2014, Sikuli.org, SikuliX.com
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * modified RaiMan
@@ -22,6 +22,7 @@ public class Pattern {
   private float similarity = (float) Settings.MinSimilarity;
   private Location offset = new Location(0, 0);
   private int waitAfter = 0;
+	private boolean imagePattern = false;
 
   /**
    * creates empty Pattern object at least setFilename() or setBImage() must be used before the
@@ -40,6 +41,7 @@ public class Pattern {
     similarity = p.similarity;
     offset.x = p.offset.x;
     offset.y = p.offset.y;
+		imagePattern = image.isPattern();
   }
 
   /**
@@ -48,10 +50,20 @@ public class Pattern {
    * @param img Image
    */
   public Pattern(Image img) {
-    image = img;
+		image = img.create(img);
+    image.setIsPattern(false);
+		imagePattern = true;
   }
 
-  /**
+	/**
+	 * true if Pattern was created from Image
+	 * @return true/false
+	 */
+	public boolean isImagePattern() {
+		return imagePattern;
+	}
+
+	/**
    * create a Pattern based on an image file name<br>
    *
    * @param imgpath image filename
@@ -93,7 +105,7 @@ public class Pattern {
    * @return true if image is useable
    */
   public boolean isValid() {
-    return image.isValid();
+    return image.isValid() || imagePattern;
   }
 
   /**

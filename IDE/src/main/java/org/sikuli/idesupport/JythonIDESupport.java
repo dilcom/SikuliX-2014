@@ -1,18 +1,15 @@
 /*
- * Copyright 2010-2013, Sikuli.org
+ * Copyright 2010-2014, Sikuli.org, sikulix.com
  * Released under the MIT License.
  *
  * added RaiMan 2013
  */
 package org.sikuli.idesupport;
 
-import org.sikuli.basics.IDESupport;
-import org.sikuli.basics.IndentationLogic;
-
 /**
  * all methods from/for IDE, that are Python specific
  */
-public class JythonIDESupport implements IDESupport {
+public class JythonIDESupport implements IIDESupport {
 
 	@Override
 	public String[] getEndings() {
@@ -20,7 +17,7 @@ public class JythonIDESupport implements IDESupport {
 	}
 
 	@Override
-	public IndentationLogic getIndentationLogic() {
+	public IIndentationLogic getIndentationLogic() {
 		return new PythonIndentation();
 	}
 }
