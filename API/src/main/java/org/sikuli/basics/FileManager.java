@@ -29,8 +29,10 @@ import java.net.Proxy;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
 import java.security.CodeSource;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Random;
 import java.util.Set;
@@ -95,7 +97,7 @@ public class FileManager {
       conn.getInputStream();
       return conn.getContentLength();
     } catch (Exception ex) {
-      log0(-1, "Download: getFileSize: not accessible:\n" + ex.getMessage());
+//      log0(-1, "Download: getFileSize: not accessible:\n" + ex.getMessage());
       return -1;
     } finally {
       conn.disconnect();
@@ -175,8 +177,8 @@ public class FileManager {
     String[] path = url.getPath().split("/");
     String filename = path[path.length - 1];
     String targetPath = null;
-    int srcLength = 0;
-    int srcLengthKB = -1;
+    int srcLength = 1;
+    int srcLengthKB = 0;
     int done;
     int totalBytesRead = 0;
     File fullpath = new File(localPath);
@@ -193,54 +195,65 @@ public class FileManager {
     }
     if (fullpath != null) {
       srcLength = tryGetFileSize(url);
+			if (srcLength < 0) {
+				srcLength = 0;
+			}
+      srcLengthKB = (int) (srcLength / 1024);
       if (srcLength > 0) {
-        srcLengthKB = (int) (srcLength / 1024);
-        fullpath = new File(localPath, filename);
-        targetPath = fullpath.getAbsolutePath();
         log0(lvl, "Downloading %s having %d KB", filename, srcLengthKB);
-        done = 0;
-        if (_progress != null) {
-          _progress.setProFile(filename);
-          _progress.setProSize(srcLengthKB);
-          _progress.setProDone(0);
-          _progress.setVisible(true);
-        }
-        try {
-          FileOutputStream writer = new FileOutputStream(fullpath);
-          InputStream reader;
-          if (getProxy() != null) {
-            reader = url.openConnection(getProxy()).getInputStream();
-          } else {
-            reader = url.openConnection().getInputStream();
-          }
-          byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
-          int bytesRead = 0;
-          long begin_t = (new Date()).getTime();
-          long chunk = (new Date()).getTime();
-          while ((bytesRead = reader.read(buffer)) > 0) {
-            writer.write(buffer, 0, bytesRead);
-            totalBytesRead += bytesRead;
-            if (srcLength > 0) {
-              done = (int) ((totalBytesRead / (double) srcLength) * 100);
-            } else {
-              done = (int) (totalBytesRead / 1024);
-            }
-            if (((new Date()).getTime() - chunk) > 1000) {
-              if (_progress != null) {
-                _progress.setProDone(done);
-              }
-              chunk = (new Date()).getTime();
-            }
-          }
-          reader.close();
-          writer.close();
-          log0(lvl, "downloaded %d KB to %s", (int) (totalBytesRead / 1024), targetPath);
-          log0(lvl, "download time: %d", (int) (((new Date()).getTime() - begin_t) / 1000));
-        } catch (Exception ex) {
-          log0(-1, "problems while downloading\n" + ex.getMessage());
-          targetPath = null;
-        }
-      }
+			} else {
+        log0(lvl, "Downloading %s with unknown size", filename);
+			}
+			fullpath = new File(localPath, filename);
+			targetPath = fullpath.getAbsolutePath();
+			done = 0;
+			if (_progress != null) {
+				_progress.setProFile(filename);
+				_progress.setProSize(srcLengthKB);
+				_progress.setProDone(0);
+				_progress.setVisible(true);
+			}
+			InputStream reader = null;
+			try {
+				FileOutputStream writer = new FileOutputStream(fullpath);
+				if (getProxy() != null) {
+					reader = url.openConnection(getProxy()).getInputStream();
+				} else {
+					reader = url.openConnection().getInputStream();
+				}
+				byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+				int bytesRead = 0;
+				long begin_t = (new Date()).getTime();
+				long chunk = (new Date()).getTime();
+				while ((bytesRead = reader.read(buffer)) > 0) {
+					writer.write(buffer, 0, bytesRead);
+					totalBytesRead += bytesRead;
+					if (srcLength > 0) {
+						done = (int) ((totalBytesRead / (double) srcLength) * 100);
+					} else {
+						done = (int) (totalBytesRead / 1024);
+					}
+					if (((new Date()).getTime() - chunk) > 1000) {
+						if (_progress != null) {
+							_progress.setProDone(done);
+						}
+						chunk = (new Date()).getTime();
+					}
+				}
+				writer.close();
+				log0(lvl, "downloaded %d KB to %s", (int) (totalBytesRead / 1024), targetPath);
+				log0(lvl, "download time: %d", (int) (((new Date()).getTime() - begin_t) / 1000));
+			} catch (Exception ex) {
+				log0(-1, "problems while downloading\n" + ex.getMessage());
+				targetPath = null;
+			} finally {
+				if (reader != null) {
+					try {
+						reader.close();
+					} catch (IOException ex) {
+					}
+				}
+			}
       if (_progress != null) {
         if (targetPath == null) {
           _progress.setProDone(-1);
@@ -278,6 +291,52 @@ public class FileManager {
   public static String downloadURL(String url, String localPath, JFrame progress) {
     _progress = (SplashFrame) progress;
     return downloadURL(url, localPath);
+  }
+
+  public static String downloadURLtoString(String src) {
+    URL url = null;
+    try {
+      url = new URL(src);
+    } catch (MalformedURLException ex) {
+      log0(-1, "download: bad URL: " + src);
+      return null;
+    }
+    String[] path = url.getPath().split("/");
+    String filename = path[path.length - 1];
+    String target = "";
+    int srcLength = 1;
+    int srcLengthKB = 0;
+		int totalBytesRead = 0;
+		srcLength = tryGetFileSize(url);
+		if (srcLength > 0) {
+			srcLengthKB = (int) (srcLength / 1024);
+			log0(lvl, "Downloading %s having %d KB", filename, srcLengthKB);
+			InputStream reader = null;
+			try {
+				if (getProxy() != null) {
+					reader = url.openConnection(getProxy()).getInputStream();
+				} else {
+					reader = url.openConnection().getInputStream();
+				}
+          byte[] buffer = new byte[DOWNLOAD_BUFFER_SIZE];
+          int bytesRead = 0;
+		      while ((bytesRead = reader.read(buffer)) > 0) {
+            totalBytesRead += bytesRead;
+						target += (new String(Arrays.copyOfRange(buffer, 0, bytesRead), StandardCharsets.UTF_8));
+          }
+			} catch (Exception ex) {
+				log0(-1, "problems while downloading\n" + ex.getMessage());
+				target= null;
+			} finally {
+				if (reader != null) {
+					try {
+						reader.close();
+					} catch (IOException ex) {
+					}
+				}
+			}
+    }
+    return target;
   }
 
   /**
@@ -962,7 +1021,7 @@ public class FileManager {
         BufferedInputStream bin = new BufferedInputStream(new FileInputStream(jars[i]));
         ZipInputStream zin = new ZipInputStream(bin);
         for (ZipEntry zipentry = zin.getNextEntry(); zipentry != null; zipentry = zin.getNextEntry()) {
-          if (filter == null || filter.accept(zipentry)) {
+          if (filter == null || filter.accept(zipentry, jars[i])) {
             if (!done.contains(zipentry.getName())) {
               jout.putNextEntry(zipentry);
               if (!zipentry.isDirectory()) {
@@ -1078,9 +1137,10 @@ public class FileManager {
       return;
     }
     String suffix = "";
-    if (file.canExecute()) {
-      suffix = EXECUTABLE;
-    }
+//TODO buildjar: suffix EXECUTABL
+//    if (file.canExecute()) {
+//      suffix = EXECUTABLE;
+//    }
     jar.putNextEntry(new ZipEntry(prefix + (prefix.equals("") ? "" : "/") + file.getName() + suffix));
     FileInputStream in = new FileInputStream(file);
     bufferedWrite(in, jar);
@@ -1088,7 +1148,7 @@ public class FileManager {
   }
 
   public interface JarFileFilter {
-    public boolean accept(ZipEntry entry);
+    public boolean accept(ZipEntry entry, String jarname);
   }
 
   public interface FileFilter {
@@ -1117,5 +1177,20 @@ public class FileManager {
 	public static boolean pathEquals(String path1, String path2) {
     return (new File(path1)).equals(new File(path2));
   }
+
+	public static boolean checkPrereqs() {
+		if (Settings.isLinux()) {
+			return checkPrereqsLux();
+		} else if (Settings.isWindows()) {
+			return true;
+		} else if (Settings.isMac()) {
+			return true;
+		}
+		return true;
+	}
+
+	public static boolean checkPrereqsLux() {
+		return true;
+	}
 }
 

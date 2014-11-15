@@ -15,6 +15,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.lang.reflect.Field;
+import java.net.URI;
 import java.net.URL;
 import java.security.CodeSource;
 import java.util.ArrayList;
@@ -51,9 +52,11 @@ public class ResourceLoader {
   private CodeSource codeSrc;
   private String jarParentPath = null;
   private String jarPath = null;
+	private URL apiJarURL = null;
   private URL jarURL = null;
   private URL libsURL = null;
   private URL tessURL = null;
+  private URL currentURL;
   private String fileList = "/filelist.txt";
   private static final String sikhomeEnv = System.getenv("SIKULIX_HOME");
   private static final String sikhomeProp = System.getProperty("sikuli.Home");
@@ -137,6 +140,16 @@ public class ResourceLoader {
     return resourceLoader;
   }
 
+	public URL setApiJarURL(String pURL) {
+    apiJarURL = null;
+		try {
+			apiJarURL = (new URI("file", pURL, null)).toURL();
+      log0(lvl, "jar supposed to contain the libs:\n%s", apiJarURL);
+		} catch (Exception ex) {
+		}
+    return apiJarURL;
+	}
+
 //  public void init(String[] args) {
 //    //Debug.log(lvl, "%s: %s: init", me, loaderName);
 //  }
@@ -160,8 +173,9 @@ public class ResourceLoader {
   }
 
   /**
-   * {@inheritDoc}
-   * @param what check type
+	 * check the availability of the native libraries and export
+   * @param what check type (currently only Settings.SIKULI_LIB)
+	 * @return true on success, false otherwise
    */
   public boolean check(String what) {
     mem = "check";
@@ -171,7 +185,7 @@ public class ResourceLoader {
       return false;
     }
 
-		if (initDone) {
+    if (initDone) {
       return true;
     }
 
@@ -181,47 +195,46 @@ public class ResourceLoader {
       File libsfolder;
       String libspath;
 
-			if (System.getProperty("sikuli.DoNotExport") == null && !isFatJar()) {
-				libsURL = null;
+      if (System.getProperty("sikuli.DoNotExport") == null && !isFatJar()) {
+        libsURL = null;
 //TODO evaluation of running situation should be put in one place
-				String jarName = "";
-				String libsJarName = "";
-				String tessJarName = "";
-				if (jarPath.contains("API")) {
-					log(-1, "The jar in use was not built with setup!\n"
-									+ "We might be running from local Maven repository?\n" + jarPath);
-          jarName = "API";
-					libsJarName = "Libs" + Settings.getShortOS();
-					tessJarName = "Tesseract";
-				}
-				if (runningSikulixapi) {
-					log(3, "The jar in use is some sikulixapi.jar\n%s", jarPath);
-					libsJarName = "sikulixlibs" + Settings.getShortOS();
-					jarName = "sikulixapi";
-					tessJarName = "sikulixtessdata";
-				}
-				if (!jarName.isEmpty()) {
-					try {
-						libsURL = new URL(jarURL.toString().replace(jarName, libsJarName));
-						if (!Sikulix.addToClasspath(libsURL.getPath()) ||
-										!org.sikuli.script.Sikulix.isOnClasspath(libsJarName)) {
-							libsURL = null;
-						}
-						tessURL = new URL(jarURL.toString().replace(jarName, tessJarName));
-						if (!Sikulix.addToClasspath(tessURL.getPath()) ||
-										!org.sikuli.script.Sikulix.isOnClasspath(tessJarName)) {
-							tessURL = null;
-						}
-					} catch (Exception ex) {
-						log(-1, "\n%s", ex);
-					}
-				}
-				if (libsURL == null) {
-					log(-1, "Terminating: The jar was not built with setup nor "
-									+ "can the libs be exported from classpath!\n" + jarPath);
-					Sikulix.terminate(999);
-				}
-			}
+        String jarName = "";
+        String libsJarName = "";
+        String tessJarName = "";
+        if (apiJarURL != null) {
+          libsURL = apiJarURL;
+        } else {
+          if (jarPath.contains("API")) {
+            log(-1, "The jar in use was not built with setup!\n"
+                    + "We might be running from local Maven repository?\n" + jarPath);
+            jarName = "API";
+            libsJarName = "Libs" + Settings.getShortOS();
+            tessJarName = "Tesseract";
+          }
+          if (runningSikulixapi) {
+            log(3, "The jar in use is some sikulixapi.jar\n%s", jarPath);
+            libsJarName = "sikulixlibs" + Settings.getShortOS();
+            jarName = "sikulixapi";
+            tessJarName = "sikulixtessdata";
+          }
+          if (!jarName.isEmpty()) {
+            try {
+              libsURL = new URL(jarURL.toString().replace(jarName, libsJarName));
+              if (!Sikulix.addToClasspath(libsURL.getPath())
+                      || !org.sikuli.script.Sikulix.isOnClasspath(libsJarName)) {
+                libsURL = null;
+              }
+            } catch (Exception ex) {
+              log(-1, "\n%s", ex);
+            }
+          }
+        }
+        if (libsURL == null) {
+          log(-1, "Terminating: The jar was not built with setup nor "
+                  + "can the libs be exported from classpath!\n" + jarPath);
+          Sikulix.terminate(999);
+        }
+      }
 
       // check the bit-arch
       osarch = System.getProperty("os.arch");
@@ -316,27 +329,27 @@ public class ResourceLoader {
             if (libsURL == null || runningSikulixapi) {
               if (Settings.isMacApp) {
                 libsfolder = new File(libPathMac);
-							} else {
-								libsfolder = (new File(jarParentPath, "libs"));
-							}
-							if (libsfolder.exists()) {
-									libPath = libsfolder.getAbsolutePath();
-							} else if (runningSikulixapi) {
-								if (!libsfolder.mkdirs()) {
-									log(-1,"running some sikulixapi.jar: cannot create libs folder in\n%s", jarParentPath);
-								} else {
-									libPath = libsfolder.getAbsolutePath();
-								}
-							}
+              } else {
+                libsfolder = (new File(jarParentPath, "libs"));
+              }
+              if (libsfolder.exists()) {
+                libPath = libsfolder.getAbsolutePath();
+              } else if (runningSikulixapi) {
+                if (!libsfolder.mkdirs()) {
+                  log(-1, "running some sikulixapi.jar: cannot create libs folder in\n%s", jarParentPath);
+                } else {
+                  libPath = libsfolder.getAbsolutePath();
+                }
+              }
               log(lvl, "Exists libs folder at location of jar? %s: %s", libPath == null ? "NO" : "YES", jarParentPath);
               libsDir = checkLibsDir(libPath);
-							if (libsDir == null) {
-								if (System.getProperty("sikuli.DoNotExport") != null) {
-									log(-1, "No valid libs folder with option sikuli.DoNotExport");
-									System.exit(1);
-								}
-							}
-           }
+              if (libsDir == null) {
+                if (System.getProperty("sikuli.DoNotExport") != null) {
+                  log(-1, "No valid libs folder with option sikuli.DoNotExport");
+                  System.exit(1);
+                }
+              }
+            }
           } else {
             log(lvl, "not running from jar: " + jarParentPath);
           }
@@ -344,7 +357,7 @@ public class ResourceLoader {
 
         // check the users home folder
         if (!Settings.runningSetup && !runningSikulixapi && libPath == null && userSikuli != null) {
-          File ud = new File(userSikuli , suffixLibs);
+          File ud = new File(userSikuli, suffixLibs);
           if (ud.exists()) {
             libPath = ud.getAbsolutePath();
           }
@@ -411,8 +424,8 @@ public class ResourceLoader {
       log(-1, "No valid libs path available until now!");
       File jarPathLibs = null;
 
-			if (libPath == null && jarParentPath != null) {
-        if (jarPath.endsWith(".jar") && libsURL == null) {
+      if (libPath == null && jarParentPath != null) {
+        if ((jarPath.endsWith(".jar") && libsURL == null) || apiJarURL != null) {
           log(-2, "Please wait! Trying to extract libs to jar parent folder: \n" + jarParentPath);
           jarPathLibs = extractLibs((new File(jarParentPath)).getAbsolutePath(), libSource);
           if (jarPathLibs == null) {
@@ -461,11 +474,10 @@ public class ResourceLoader {
       }
     }
 
-    if (itIsJython) {
-      export("Lib/sikuli", libsDir.getParent());
-      itIsJython = false;
-    }
-
+//    if (itIsJython) {
+//      export("Lib/sikuli", libsDir.getParent());
+//      itIsJython = false;
+//    }
     if (Settings.OcrDataPath == null && System.getProperty("sikuli.DoNotExport") == null) {
       if (Settings.isWindows() || Settings.isMac()) {
         Settings.OcrDataPath = libPath;
@@ -474,7 +486,7 @@ public class ResourceLoader {
       }
     }
 
-		initDone = true;
+    initDone = true;
     return libsDir != null;
   }
 
@@ -599,8 +611,13 @@ public class ResourceLoader {
     return dir;
   }
 
+  public boolean export(URL fromURL, String res, String targetPath) {
+    currentURL = fromURL;
+    boolean success = export(res, targetPath);
+    currentURL = null;
+    return success;
+  }
   /**
-   * {@inheritDoc}
    * @param res what to export
    * @param targetPath target folder
    * @return success
@@ -610,23 +627,36 @@ public class ResourceLoader {
     mem = "export";
     log(lvl, "Trying to access package for exporting: %s\nto: %s", res, targetPath);
     boolean fastReturn = false;
-    String pre = null, suf = "", tok = "";
+    String pre = null, suf = "", tok = res;
     String[] parts;
     if (res.indexOf("#") != -1) {
       tok = res.replace("#", "/");
+      if (tok.startsWith("/")) {
+        tok = tok.substring(1);
+      }
       parts = res.split("#");
       if (parts.length > 2) {
         log(-1, "export: invalid resource: %s", res);
         return false;
       }
-      pre = parts[0];
-      suf = parts[1];
-      fastReturn = true;
+      if (parts.length > 1) {
+				if (!parts[0].isEmpty()) {
+					pre = parts[0];
+					suf = parts[1];
+				} else if (!parts[1].isEmpty()) {
+					pre = "";
+					suf = parts[1];
+				}
+			} else {
+				pre = tok;
+			}
+			fastReturn = true;
+			log(lvl, "export with #: %s (%s)-(%s) as %s", res, pre, suf, tok);
     }
-    URL currentURL = jarURL;
-    if (tok.contains("tessdata") && tessURL != null) {
-      currentURL = tessURL;
+    if (currentURL == null) {
+      currentURL = jarURL;
     }
+    extractingFromJar = currentURL.getPath().endsWith(".jar");
     List<String[]> entries = makePackageFileList(currentURL, tok, true);
     if (entries == null || entries.isEmpty()) {
       return false;
@@ -657,7 +687,7 @@ public class ResourceLoader {
         }
         if (targetDate == 0 || targetDate < entryDate) {
           extractResource(source, targetFile, extractingFromJar);
-          log(lvl + 1, "is from: %s (%d)", entryDate, targetDate);
+          log(lvl + 1, "is dated: %s (%d)", entryDate, targetDate);
         } else {
           log(lvl + 1, "already in place: " + targetName);
           if (fastReturn) {
@@ -673,53 +703,9 @@ public class ResourceLoader {
     return true;
   }
 
-//  /**
-//   * {@inheritDoc}
-//   * @param args what to do
-//   */
-//  public void install(String[] args) {
-//    mem = "install";
-//    log(lvl, "entered");
-//    //extractLibs(args[0]);
-//  }
-
-//  public boolean doSomethingSpecial(String action, Object[] args) {
-//    if ("loadLib".equals(action)) {
-//      loadLib((String) args[0]);
-//      return true;
-//    } else if ("runcmd".equals(action)) {
-//      String retval = runcmd((String[]) args);
-//      args[0] = retval;
-//      return true;
-//    } else if ("checkLibsDir".equals(action)) {
-//      return (libsDir != null);
-//    } else if ("exportTessdata".equals(action)) {
-//      return true;
-//    } else {
-//      return false;
-//    }
-//  }
-
   public void setItIsJython() {
       itIsJython = true;
   }
-
-  public void exportTessdata(URL uTess) {
-    if (tessURL == null) {
-      if (uTess == null) {
-        log(lvl, "exportTessdata: no valid Tessdata.jar available until now");
-      } else {
-        tessURL = uTess;
-      }
-    }
-    log(lvl, "exportTessdata from: %s", (tessURL == null ? "deferred" : FileManager.slashify(tessURL.getPath(), false)));
-    FileManager.deleteFileOrFolder(new File(Settings.OcrDataPath, "tessdata").getAbsolutePath());
-    log(lvl, "Trying to extract tessdata folder since it does not exist yet.");
-    if (!export("META-INF/libs#tessdata", libPath)) {
-      log(-1, "exportTessdata: nothing exported --- text features will not work");
-    }
-  }
-
 
   public String runcmd(String cmd) {
     return runcmd(new String[]{cmd});
@@ -793,20 +779,6 @@ public class ResourceLoader {
   }
 
   /**
-   * {@inheritDoc}
-   */
-//  public String getName() {
-//    return loaderName;
-//  }
-
-  /**
-   * {@inheritDoc}
-   */
-//  public String getResourceTypes() {
-//    return Settings.SIKULI_LIB;
-//  }
-
-  /**
    * make sure, a native library is available and loaded
    *
    * @param libname System.loadLibrary() compatible library name
@@ -845,6 +817,8 @@ public class ResourceLoader {
       } else {
         lib = mappedlib;
         log(lvl, "Linux: %s \nnot bundled - trying to load from system paths", lib);
+//TODO try to find it on LD_LIBRARY_PATH
+				Sikulix.terminate(109);
       }
     } else {
       log(lvl + 1, "Found: " + libname + " at " + lib);
@@ -872,6 +846,11 @@ public class ResourceLoader {
   private File extractLibs(String targetDir, String libSource) {
     String memx = mem;
     mem = "extractLibs";
+    if (apiJarURL != null) {
+      libsURL = apiJarURL;
+      targetDir = new File(libsURL.getPath()).getParent();
+      extractingFromJar = true;
+    }
     List<String[]> libsList = makePackageFileList(
             (libsURL != null) ? libsURL : jarURL, libSource, false);
     if (libsList == null) {

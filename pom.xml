@@ -79,7 +79,7 @@
 				<updatePolicy>never</updatePolicy>
 			</snapshots>
 		</repository>
-		<repository> <!-- Tesseract4SikuliX: java/dev/jai-imageio/jai-imageio-core-standalone/1.2 -->
+<!--		<repository>  Tesseract4SikuliX: java/dev/jai-imageio/jai-imageio-core-standalone/1.2
 			<releases/>
 			<snapshots>
 				<enabled>false</enabled>
@@ -87,7 +87,7 @@
 			<id>mygrid-repository</id>
 			<name>myGrid Repository</name>
 			<url>http://www.mygrid.org.uk/maven/repository</url>
-		</repository>
+		</repository>-->
 	</repositories>
 
 	<dependencies>
@@ -126,16 +126,15 @@
 		<module>Libsmac</module>
 		<module>Libswin</module>
 		<module>API</module>
+		<module>APIPlus</module>
 		<module>APIFat</module>
 		<module>Jygments4SikuliX</module>
 		<module>IDE</module>
-		<module>IDEFat</module>
+		<module>IDEPlus</module>
 		<module>Setup</module>
-		<module>MacApp</module>
-		<module>Tesseract</module>
-		<module>Tesseract4SikuliX</module>
-		<module>Remote</module>
-		<module>Guide</module>
+		<module>RemoteRobot</module>
+		<module>RemoteServer</module>
+		<module>RESTClient</module>
 		<module>TestRunMaven</module>
 	</modules>
 

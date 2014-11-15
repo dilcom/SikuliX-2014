@@ -40,8 +40,9 @@ import org.sikuli.natives.Vision;
 
 /**
  * This class hides the complexity behind image names given as string.
- * <br>It's companion is {@link ImagePath} that maintains a list of places, where images are
- * stored.<br>
+ * <br>Image does not have public nor protected constructors: use create()
+ * <br>It's companion is {@link ImagePath} that maintains a list of places, where image files are
+ * loaded from.<br>
  * Another companion {@link ImageGroup} will allow to look at images in a folder as a
  * group.<br>
  * An Image object:<br>
@@ -56,13 +57,11 @@ import org.sikuli.natives.Vision;
  * engine <br>
  *
  * This class maintains<br>
- * - a list of all images ever loaded in this session with there source
+ * - a list of all images ever loaded in this session with their source
  * reference and a ref to the image object<br>
  * - a list of all images currently having their content in memory (buffered
  * image) (managed as a configurable cache)<br>
- *
- * Image does not have public nor protected constructors: use create()
- *
+ * The caching can be configured using {@link Settings#setImageCache(int)}
  */
 public class Image {
 
@@ -77,15 +76,11 @@ public class Image {
   }
 
   private static List<Image> images = Collections.synchronizedList(new ArrayList<Image>());
-  private static List<Image> imagePurgeList = Collections.synchronizedList(new ArrayList<Image>());
-  private static List<URL> imageNamePurgeList = Collections.synchronizedList(new ArrayList<URL>());
   private static Map<URL, Image> imageFiles = Collections.synchronizedMap(new HashMap<URL, Image>());
   private static Map<String, URL> imageNames = Collections.synchronizedMap(new HashMap<String, URL>());
   private static int KB = 1024;
   private static int MB = KB * KB;
-  private static int maxMemory = 64 * MB;
-  private static int currentMemory;
-  private static String imageFromJar = "__FROM_JAR__";
+  private static int currentMemory = 0;
   private final static String isBImg = "__BufferedImage__";
 
 //<editor-fold defaultstate="collapsed" desc="imageName">
@@ -119,11 +114,7 @@ public class Image {
 //<editor-fold defaultstate="collapsed" desc="bimg">
   private BufferedImage bimg = null;
 
-  public BufferedImage getBimg() {
-    return bimg;
-  }
-
-  public Image setBimg(BufferedImage bimg) {
+  protected Image setBimg(BufferedImage bimg) {
     this.bimg = bimg;
     if (bimg != null) {
       bwidth = bimg.getWidth();
@@ -211,7 +202,7 @@ public class Image {
   /**
    * true if this image contains pattern aspects<br>
    * only useable with the new ImageFinder
-   * @return
+   * @return true if yes, false otherwise
    */
   public boolean isPattern() {
     return imageIsPattern;
@@ -375,6 +366,62 @@ public class Image {
 		}
 		beSilent = silent;
     load();
+  }
+
+  private BufferedImage load() {
+    BufferedImage bImage = null;
+    if (fileURL != null) {
+      bimg = null;
+      try {
+        bImage = ImageIO.read(fileURL);
+      } catch (Exception e) {
+        if (!beSilent) {
+          log(-1, "could not be loaded: %s", fileURL);
+        }
+				fileURL = null;
+        return null;
+      }
+      if (imageName != null) {
+        if (!imageFiles.containsKey(fileURL)) {
+          imageFiles.put(fileURL, this);
+          imageNames.put(imageName, fileURL);
+          bwidth = bImage.getWidth();
+          bheight = bImage.getHeight();
+          bsize = bImage.getData().getDataBuffer().getSize();
+        }
+        log(lvl, "loaded: %s (%s)", imageName, fileURL);
+        int maxMemory = Settings.getImageCache() * MB;
+        if (maxMemory > 0) {
+          currentMemory += bsize;
+          if (currentMemory > maxMemory) {
+            clearCache(maxMemory);
+          }
+          bimg = bImage;
+          images.add(this);
+          log(lvl, "cached: %s (%d KB) (# %d KB %d -- %d %% of %d MB)",
+                  imageName, getKB(),
+                  images.size(), (int) (currentMemory / KB),
+                  (int) (100 * currentMemory / maxMemory), (int) (maxMemory / MB));
+        }
+      } else {
+        log(-1, "invalid! not loaded! %s", fileURL);
+      }
+    }
+    return bImage;
+  }
+
+  public static void clearCache(int maxSize) {
+    Image first;
+    while (images.size() > 0 && currentMemory > maxSize) {
+      first = images.remove(0);
+      first.bimg = null;
+      currentMemory -= first.bsize;
+    }
+    if (maxSize == 0) {
+      currentMemory = 0;
+    } else {
+      currentMemory = Math.max(0, currentMemory);
+    }
   }
 
   private Image copy() {
@@ -568,49 +615,19 @@ public class Image {
       img = new Image(fileName, fURL, silent);
       img.setIsAbsolute(imgFile.isAbsolute());
     } else {
-			log(3, "from cache: %s", img.fileURL);
+      if (img.bimg != null) {
+        log(3, "reused: %s (%s)", img.imageName, img.fileURL);
+      } else {
+        if (Settings.getImageCache() > 0) {
+          img.load();
+        }
+      }
 		}
     return img;
   }
 
-  private BufferedImage load() {
-    if (fileURL != null) {
-      try {
-        bimg = ImageIO.read(fileURL);
-      } catch (Exception e) {
-        if (!beSilent) {
-          log(-1, "could not be loaded: %s", fileURL);
-        }
-				fileURL = null;
-        return null;
-      }
-      if (imageName != null) {
-        imageFiles.put(fileURL, this);
-        imageNames.put(imageName, fileURL);
-        log(lvl, "added: %s", fileURL);
-        bwidth = bimg.getWidth();
-        bheight = bimg.getHeight();
-        bsize = bimg.getData().getDataBuffer().getSize();
-        currentMemory += bsize;
-        Image first;
-        while (images.size() > 0 && currentMemory > maxMemory) {
-          first = images.remove(0);
-          currentMemory -= first.bsize;
-        }
-        images.add(this);
-        log(lvl, "loaded %s (%d KB) (KB %d # %d %% %d of %d MB)",
-								new File(imageName).getName(), getKB(),
-                (int) (currentMemory / KB), images.size(),
-								(int) (100 * currentMemory / maxMemory), (int) (maxMemory / MB));
-      } else {
-        log(-1, "invalid! not cached!");
-      }
-    }
-    return bimg;
-  }
-
   protected static Image get(URL imgURL) {
-    return imageFiles.get(imgURL.toString());
+    return imageFiles.get(imgURL);
   }
 
   private Image(URL fURL) {
@@ -689,33 +706,43 @@ public class Image {
    * INTERNAL USE: IDE: to get rid of cache entries at script save, close or
    * save as
    *
-   * @param bundlePath absolute path
+   * @param bundlePath absolute path for an image set in this folder
    */
   public static void purge(String bundlePath) {
     if (imageFiles.isEmpty() || ImagePath.getPaths().get(0) == null) {
       return;
     }
     URL pathURL = FileManager.makeURL(bundlePath);
-    if (!ImagePath.getPaths().get(0).equals(pathURL)) {
+    if (!ImagePath.getPaths().get(0).pathURL.equals(pathURL)) {
       log(-1, "purge: not current bundlepath: " + pathURL);
       return;
     }
     purge(pathURL);
   }
 
-  public static synchronized void purge(URL pathURL) {
+  protected static void purge(ImagePath.PathEntry path) {
+    if (path == null) {
+      return;
+    }
+    purge(path.pathURL);
+  }
+
+  protected static synchronized void purge(URL pathURL) {
+    List<Image> imagePurgeList = new ArrayList<Image>();
+    List<String> imageNamePurgeList = new ArrayList<String>();
     URL imgURL;
     Image img;
     log(lvl, "purge: ImagePath: %s", pathURL.getPath());
     Iterator<Map.Entry<URL, Image>> it = imageFiles.entrySet().iterator();
     Map.Entry<URL, Image> entry;
-    imagePurgeList.clear();
     while (it.hasNext()) {
       entry = it.next();
       imgURL = entry.getKey();
       if (imgURL.toString().startsWith(pathURL.toString())) {
         log(lvl + 1, "purge: URL: %s", imgURL.toString());
-        imagePurgeList.add(entry.getValue());
+        img = entry.getValue();
+        imagePurgeList.add(img);
+        imageNamePurgeList.add(img.imageName);
         it.remove();
       }
     }
@@ -729,15 +756,26 @@ public class Image {
           currentMemory -= img.bsize;
         }
       }
+      currentMemory = Math.max(0, currentMemory);
     }
-    clearImageNames();
+    for (String name : imageNamePurgeList) {
+      imageNames.remove(name);
+    }
   }
 
+  /**
+   * purge the given image file's in memory image data and remove it from cache.
+   * @param imgFileName an absolute filename
+   */
   public static void unCacheBundledImage(String imgFileName) {
     URL imgURL = FileManager.makeURL(new File(imgFileName).getAbsolutePath());
     unCacheImage(imgURL);
   }
 
+  /**
+   * purge the given image's in memory image data and remove it from cache.
+   * @param imgURL URL of an image file
+   */
   public static void unCacheImage(URL imgURL) {
     Image img = imageFiles.get(imgURL);
     if (img == null) {
@@ -747,35 +785,52 @@ public class Image {
     images.remove(img);
   }
 
-  public static synchronized void clearImageNames() {
-    imageNames.clear();
+  /**
+   * Print the current state of the cache
+   */
+  public static void dump() {
+    dump(0);
   }
 
   /**
    * Print the current state of the cache, verbosity depends on debug level
+   * @param lvl debug level used here
    */
-  public static void dump() {
-    log(0, "--- start of Image dump ---");
-    ImagePath.dump();
-    log(0, "ImageFiles entries: %d", imageFiles.size());
+  public static void dump(int lvl) {
+    log(lvl, "--- start of Image dump ---");
+    ImagePath.dump(lvl);
+    log(lvl, "ImageFiles entries: %d", imageFiles.size());
     Iterator<Map.Entry<URL, Image>> it = imageFiles.entrySet().iterator();
     Map.Entry<URL, Image> entry;
     while (it.hasNext()) {
       entry = it.next();
-      log(0, entry.getKey().toString());
+      log(lvl, entry.getKey().toString());
     }
-    log(0, "ImageNames entries: %d", imageNames.size());
+    log(lvl, "ImageNames entries: %d", imageNames.size());
     Iterator<Map.Entry<String, URL>> nit = imageNames.entrySet().iterator();
     Map.Entry<String, URL> name;
     while (nit.hasNext()) {
       name = nit.next();
-      log(0, "%s %d KB (%s)", new File(name.getKey()).getName(),
+      log(lvl, "%s %d KB (%s)", new File(name.getKey()).getName(),
 							imageFiles.get(name.getValue()).getKB(), name.getValue());
     }
-    log(0, "Cache state: Max %d MB (entries: %d  used: %d %% %d KB)",
-            (int) (maxMemory / MB), images.size(),
-            (int) (100 * currentMemory / maxMemory), (int) (currentMemory / KB));
-    log(0, "--- end of Image dump ---");
+    if (Settings.getImageCache() == 0) {
+      log(lvl, "Cache state: switched off!");
+    } else {
+      log(lvl, "Cache state: Max %d MB (entries: %d  used: %d %% %d KB)",
+              Settings.getImageCache(), images.size(),
+              (int) (100 * currentMemory / (Settings.getImageCache() * MB)), (int) (currentMemory / KB));
+    }
+    log(lvl, "--- end of Image dump ---");
+  }
+
+  /**
+   * clears all caches (should only be needed for debugging)
+   */
+  public static void reset() {
+    clearCache(0);
+    imageNames.clear();
+    imageFiles.clear();
   }
 
   /**
@@ -870,11 +925,14 @@ public class Image {
   }
 
 	private int getKB() {
+    if (bimg == null) {
+      return 0;
+    }
 		return (int) bsize / KB;
 	}
 
   /**
-   *
+   * resize the loaded image with factor using Graphics2D.drawImage
    * @param factor resize factor
    * @return a new BufferedImage resized (width*factor, height*factor)
    */
@@ -915,7 +973,7 @@ public class Image {
    * @return the sub image
    */
   public Image getSub(int part) {
-    Rectangle r = Region.getRectangle(0, 0, getSize().width, getSize().height, part);
+    Rectangle r = Region.getRectangle(new Rectangle(0, 0, getSize().width, getSize().height), part);
     return getSub(r.x, r.y, r.width, r.height);
   }
 

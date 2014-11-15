@@ -1,5 +1,36 @@
+<h4>Build: 2014-11-13</h4>
+fixed: detection of Mac OSX 10.10
+<h4>Build: 2014-10-31</h4>
+fixed: Windows: offline setup did not work
+<h4>Build: 2014-10-20</h4>
+fixed: JRubyAddons (1.1.0-6.jar) back again for download during setup
+<h4>Build: 2014-10-16</h4>
+fixed: offline setup now includes library jars<br>
+finalized: unattended setup
+<h4>Build: 2014-10-14</h4>
+fixed: a crash on Windows because of a bug in the handling of the libs folder<br>
+finally revised: download of needed stuff during setup
+<h4>Build: 2014-10-12</h4>
+fixed: setup: export resources (Lib folder, command files, ...)<br>
+revised: Jython, JRuby, libs-jars and sikulixapi.jar now loaded from MavenCentral/OSSRH
+<h4>Build: 2014-10-05</h4>
+changed: managing ImageCache is per Settings.setImageCache(n), which sets the max. in-memory-images to n MB (start value 64). 0 will switch off caching and clear the cache immediately.<br>
+completely revised image loading and caching.<br>
+added: a feature to store key-value-pairs in the persistent preferences storage, so they can be retrieved in a future SikuliX session<br>
+... details see javadocs Sikulix.prefStore, ...load, ...remove<br>
+added: Region.isValid to check, wether a Region can access a screen<br>
+added: Region.mouseMove(x,y) and Mose.move(x,y): both move the mouse from it's current position to the given offset
+<h4>Build: 2014-09-25</h4>
+revised: getting parts of a region or an image based on a raster overlay of even rows, columns or cells<br>
+documentation: started to revise the docs
+<h4>Build: 2014-09-24</h4>
+added: Region: getLastTime() returns the duration in msecs of the last find in the given region (similar: Match.getTime())
+<h4>Build: 2014-09-23</h4>
+fixed: Jython import problem in build 2014-09-22 (addModPath)<br>
+added: Sikuli.py: some convenience functions for path handling<br>
+added: Sikuli.py: new popXXX, input, select
 <h4>Build: 2014-09-17</h4>
-added: IDE: Preview: renaming an image now changes all occurences of the same imagename in this script
+added: IDE: Preview: renaming an image now changes all occurences of the same imagename in this script<br>
 added: IDE: scriptwindow tab menu: reset now makes a reparse to reflect changes in the preferences (e.g. how images are shown)
 <h4>Build: 2014-09-16</h4>
 fixed: user parameters from command line after -- or --args are now available again in sys.argv[1 .. n]<br>

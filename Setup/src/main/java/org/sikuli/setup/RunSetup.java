@@ -16,18 +16,21 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.security.CodeSource;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import javax.swing.JFrame;
 import javax.swing.border.Border;
 import javax.swing.border.LineBorder;
+import org.rauschig.jarchivelib.Archiver;
+import org.rauschig.jarchivelib.ArchiverFactory;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.FileManager;
 import org.sikuli.basics.SplashFrame;
@@ -42,6 +45,7 @@ public class RunSetup {
   private static boolean runningUpdate = false;
 	private static boolean isUpdateSetup = false;
 	private static boolean runningfromJar = true;
+  private static URL runningJarURL;
 	private static boolean noSetup = false;
 	private static boolean noSetupSilent = false;
 	private static boolean backUpExists = false;
@@ -54,17 +58,19 @@ public class RunSetup {
 	private static String majorversion = Settings.getVersionShort().substring(0,3);
 	private static String updateVersion;
 	private static String downloadSetup;
+  private static String downloadMavenSnapshot = "";
+  private static String downloadMavenRelease = "";
 	private static String downloadIDE = version + "-1.jar";
-	private static String downloadJava = version + "-2.jar";
+	private static String downloadAPI = version + "-2.jar";
 	private static String downloadRServer = version + "-3.jar";
-	private static String downloadJython = version + "-4.jar";
-	private static String downloadJRuby = version + "-5.jar";
+	private static String downloadJython = new File(Settings.SikuliJythonMaven).getName();
+	private static String downloadJRuby = new File(Settings.SikuliJRubyMaven).getName();
 	private static String downloadJRubyAddOns = version + "-6.jar";
 	private static String downloadMacAppSuffix = "-9.jar";
 	private static String downloadMacApp = minorversion + downloadMacAppSuffix;
 	private static String downloadTessSuffix = "-8.jar";
 	private static String downloadTess = minorversion + downloadTessSuffix;
-	private static String localJava = "sikulixapi.jar";
+	private static String localAPI = "sikulixapi.jar";
 	private static String localIDE = "sikulix.jar";
 	private static String localMacApp = "sikulixmacapp.jar";
 	private static String localMacAppIDE = "SikuliX-IDE.app/Contents/sikulix.jar";
@@ -82,7 +88,7 @@ public class RunSetup {
 	private static String localLogfile;
 	private static SetUpSelect winSU;
 	private static JFrame winSetup;
-	private static boolean getIDE, getJython, getJava;
+	private static boolean getIDE, getJython, getAPI;
   private static boolean getRServer = false;
 	private static boolean forAllSystems = false;
 	private static boolean getTess = false;
@@ -107,6 +113,14 @@ public class RunSetup {
   private static int optionsSize;
   private static boolean logToFile = true;
 	private static boolean hasOptions = false;
+	private static int logLevel = 3;
+  private static boolean forSystemWin = false;
+  private static boolean forSystemMac = false;
+  private static boolean forSystemLux = false;
+  private static String libsMac = "sikulixlibsmac";
+  private static String libsWin = "sikulixlibswin";
+  private static String libsLux = "sikulixlibslux";
+  private static String apiJarName = "sikulixapi";
 
 	//<editor-fold defaultstate="collapsed" desc="new logging concept">
 	private static void log(int level, String message, Object... args) {
@@ -138,7 +152,15 @@ public class RunSetup {
 		PreferencesUser prefs = PreferencesUser.getInstance();
 		boolean prefsHaveProxy = false;
 
-		if (Settings.SikuliVersionBetaN > 0 && Settings.SikuliVersionBetaN < 99) {
+   CodeSource codeSrc = RunSetup.class.getProtectionDomain().getCodeSource();
+   if (codeSrc != null && codeSrc.getLocation() != null) {
+      runningJarURL = codeSrc.getLocation();
+    } else {
+      log(-1, "Fatal Error 201: Not possible to accessjar file for RunSetup.class");
+      Sikulix.terminate(201);
+    }
+
+    if (Settings.SikuliVersionBetaN > 0 && Settings.SikuliVersionBetaN < 99) {
 			updateVersion = String.format("%d.%d.%d-Beta%d",
 							Settings.SikuliVersionMajor, Settings.SikuliVersionMinor, Settings.SikuliVersionSub,
 							1 + Settings.SikuliVersionBetaN);
@@ -198,7 +220,7 @@ public class RunSetup {
       if (options.isEmpty()) {
         getIDE = true;
         getJython = true;
-        getJava = true;
+        getAPI = true;
       } else {
         if ("jruby".equals(options.get(0))) {
           options.remove(0);
@@ -208,6 +230,7 @@ public class RunSetup {
       }
     }
 
+//TODO add parameter for proxy settings, linux options
     if (args.length > 0 && "options".equals(args[0])) {
       options.remove(0);
 			if (!options.isEmpty()) {
@@ -222,18 +245,28 @@ public class RunSetup {
 						getJRuby = true;
 					} else if (val.contains("1.3")) {
 						hasOptions = true;
+						getIDE = true;
 						getJRuby = true;
 						getJRubyAddOns = true;
-					} else if (val.contains("2")) {
+					} else if ("2".equals(val)) {
 						hasOptions = true;
-						getJava = true;
-					} else if (val.contains("3")) {
+						getAPI = true;
+					} else if ("3".equals(val)) {
 						hasOptions = true;
 						getTess = true;
-					} else if (val.contains("4")) {
+					} else if ("4".equals(val)) {
 						hasOptions = true;
 						forAllSystems = true;
-					} else if (val.contains("5")) {
+					} else if (val.contains("4.1")) {
+						hasOptions = true;
+						forSystemWin = true;
+					} else if (val.contains("4.2")) {
+						hasOptions = true;
+						forSystemMac = true;
+					} else if (val.contains("4.3")) {
+						hasOptions = true;
+						forSystemLux = true;
+					} else if ("5".equals(val)) {
 						hasOptions = true;
 						getRServer = true;
 					}
@@ -259,6 +292,16 @@ public class RunSetup {
       isUpdateSetup = true;
       options.remove(0);
     }
+
+    if (options.size() > 1 && "log".equals(options.get(0))) {
+      options.remove(0);
+			String log = options.remove(0);
+			try {
+				logLevel = Integer.decode(log);
+			} catch (NumberFormatException numberFormatException) {
+			}
+    }
+
     //</editor-fold>
 
 		runningJar = FileManager.getJarName(RunSetup.class);
@@ -375,7 +418,7 @@ public class RunSetup {
 		//<editor-fold defaultstate="collapsed" desc="general preps">
 		Settings.runningSetup = true;
 		Settings.LogTime = true;
-		Debug.setDebugLevel(3);
+		Debug.setDebugLevel(logLevel);
 
 		uhome = System.getProperty("user.home");
 		runningJar = FileManager.getJarPath(RunSetup.class);
@@ -384,14 +427,15 @@ public class RunSetup {
     if (!runningJar.endsWith(".jar") || runningJar.endsWith("-plain.jar")) {
 			if (!hasOptions) {
 				if (noSetup) {
-					log(3, "creating Setup folder - not running setup");
+					log(lvl, "creating Setup folder - not running setup");
 				} else {
-					log(3, "have to create Setup folder before running setup");
+					log(lvl, "have to create Setup folder before running setup");
 				}
 				if (!createSetupFolder("")) {
 					log(-1, "createSetupFolder: did not work- terminating");
 					System.exit(1);
 				}
+//        workDir = FileManager.slashify(workDir, true) + "Setup";
 				if (noSetup) {
 					System.exit(0);
 				}
@@ -427,7 +471,7 @@ public class RunSetup {
 		log1(lvl, "SikuliX Setup Build: %s %s", Settings.getVersionShort(), Settings.SikuliVersionBuild);
 
 		File localJarIDE = new File(workDir, localIDE);
-		File localJarJava = new File(workDir, localJava);
+		File localJarAPI = new File(workDir, localAPI);
 		File localMacFolder = new File(workDir, folderMacApp);
 
     //TODO Windows 8 HKLM/SOFTWARE/JavaSoft add Prefs ????
@@ -439,7 +483,7 @@ public class RunSetup {
 							+ "\nClick YES, if you want to install ..."
 							+ "\ncurrent stuff will be saved to BackUp."
 							+ "\n... Click NO to skip ...";
-			if (localJarIDE.exists() || localJarJava.exists() || localMacFolder.exists()) {
+			if (localJarIDE.exists() || localJarAPI.exists() || localMacFolder.exists()) {
 				int avail = -1;
 				boolean someUpdate = false;
 				String ask1 = "You have " + Settings.getVersion()
@@ -603,10 +647,14 @@ public class RunSetup {
     if (!test) {
       getIDE = false;
       getJython = false;
-      getJava = false;
+      getAPI = false;
     }
     if (!test) {
       if (!isUpdateSetup) {
+				if (!FileManager.checkPrereqs()) {
+		      log(-1, "Fatal Error 202: some prereqs are not available");
+					Sikulix.terminate(202);
+				}
         popInfo("Please read carefully before proceeding!!");
         winSetup = new JFrame("SikuliX-Setup");
         Border rpb = new LineBorder(Color.YELLOW, 8);
@@ -707,7 +755,7 @@ public class RunSetup {
           if (winSU.option3.isSelected()) {
             getJRuby = true;
             if (winSU.option8.isSelected()) {
-              getJRubyAddOns = false;
+              getJRubyAddOns = true;
             }
           }
           if (!getJython && !getJRuby) {
@@ -715,7 +763,7 @@ public class RunSetup {
           }
         }
         if (winSU.option4.isSelected()) {
-          getJava = true;
+          getAPI = true;
         }
         if (winSU.option5.isSelected()) {
           if (Settings.isLinux()) {
@@ -734,7 +782,7 @@ public class RunSetup {
           getRServer = true;
         }
 
-        if (((getTess || forAllSystems) && !(getIDE || getJava))) {
+        if (((getTess || forAllSystems) && !(getIDE || getAPI))) {
           popError("You only selected Option 3 or 4 !\n"
                   + "This is currently not supported.\n"
                   + "Please start allover again with valid options.\n");
@@ -751,9 +799,9 @@ public class RunSetup {
           getIDE = true;
           msg += "Pack 1: " + localIDE + "\n";
         }
-        if (new File(workDir, localJava).exists()) {
-          getJava = true;
-          msg += "Pack 2: " + localJava + "\n";
+        if (new File(workDir, localAPI).exists()) {
+          getAPI = true;
+          msg += "Pack 2: " + localAPI + "\n";
         }
         if (new File(workDir, localRServer).exists()) {
           getRServer = true;
@@ -774,11 +822,12 @@ public class RunSetup {
 
 		downloadedFiles = "";
 		if (!isUpdateSetup) {
-			if (getIDE || getJava || getRServer) {
+			if (getIDE || getAPI || getRServer) {
 
 				if (!proxyMsg.isEmpty()) {
 					msg += proxyMsg + "\n";
 				}
+        msg += "\n--- Native support libraries for " + Settings.osName + " (sikulixlibs...)\n";
 				if (getIDE) {
 					downloadedFiles += downloadIDE + " ";
 					msg += "\n--- Package 1 ---\n" + downloadIDE + " (IDE/Scripting)";
@@ -794,19 +843,20 @@ public class RunSetup {
               msg += " incl. AddOns";
             }
 					}
-//					if (Settings.isMac()) {
-//            downloadedFiles += downloadMacApp + " ";
-//						msg += "\n" + downloadMacApp + " (Mac-App)";
-//					}
+          msg += "\n";
+				}
+				if (getAPI) {
+					downloadedFiles += downloadAPI + " ";
+					msg += "\n--- Package 2 ---\n" + downloadAPI + " (Java API)";
 				}
 				if (getTess || getRServer) {
-					if (getIDE || getJava) {
+					if (getIDE || getAPI) {
 						msg += "\n";
 					}
 					msg += "\n--- Additions ---";
 					if (getTess) {
-						downloadedFiles += downloadTess + " ";
-						msg += "\n" + downloadTess + " (Tesseract)";
+						downloadedFiles += "tessdata-eng" + " ";
+						msg += "\n" + "tessdata-eng" + " (Tesseract)";
 					}
 					if (getRServer) {
 						downloadedFiles += downloadRServer + " ";
@@ -816,27 +866,76 @@ public class RunSetup {
 			}
 		}
 
-		if (getIDE || getJava || getRServer) {
-			if (getIDE || getRServer) {
-				msg += "\n\nOnly click NO, if you want to terminate setup now!\n"
-								+ "Click YES even if you want to use local copies in Downloads!";
-				if (!popAsk(msg)) {
-					terminate("");
-				}
-			}
-		} else {
+    if (getIDE || getAPI || getRServer) {
+      msg += "\n\nOnly click NO, if you want to terminate setup now!\n"
+              + "Click YES even if you want to use local copies in Downloads!";
+      if (!popAsk(msg)) {
+        terminate("");
+      }
+    } else {
 			popError("Nothing selected! You might try again ;-)");
 			terminate("");
 		}
 
 		// downloading
+		ResourceLoader loader = ResourceLoader.get();
+		String localTemp = "sikulixtemp.jar";
+		String[] jarsList = new String[]{
+			null, // ide
+			null, // api
+			null, // tess
+			null, // jython
+			null, // jruby
+			null, // jruby+
+			null, // libwin
+			null, // libmac
+			null  // liblux
+		};
 		localJar = null;
+		File fTargetJar;
 		String targetJar;
 		boolean downloadOK = true;
 		boolean dlOK = true;
 		File fDLDir = new File(workDir, "Downloads");
 		fDLDir.mkdirs();
 		String dlDir = fDLDir.getAbsolutePath();
+    if (!forSystemWin && !forSystemMac && !forSystemLux) {
+      forSystemWin = Settings.isWindows();
+      forSystemMac = Settings.isMac();
+      forSystemLux = Settings.isLinux();
+    }
+		File libDownloaded;
+    if (forSystemWin || forAllSystems) {
+      jarsList[6] = new File(workDir, libsWin + ".jar").getAbsolutePath();
+			libDownloaded = new File(dlDir, libsWin + "-" + version + ".jar");
+			if (! takeAlreadyDownloaded(libDownloaded, libsWin)) {
+				downloadOK &= getSikulixJarFromMaven(libsWin, dlDir, null, libsWin);
+			} else {
+				copyFromDownloads(libDownloaded, libsWin, jarsList[6]);
+			}
+    }
+    if (forSystemMac || forAllSystems) {
+      jarsList[7] = new File(workDir, libsMac + ".jar").getAbsolutePath();
+			libDownloaded = new File(dlDir, libsMac + "-" + version + ".jar");
+			if (! takeAlreadyDownloaded(libDownloaded, libsMac)) {
+				downloadOK &= getSikulixJarFromMaven(libsMac, dlDir, null, libsMac);
+			} else {
+				copyFromDownloads(libDownloaded, libsMac, jarsList[7]);
+			}
+    }
+    if (forSystemLux || forAllSystems) {
+      jarsList[8] = new File(workDir, libsLux + ".jar").getAbsolutePath();
+			libDownloaded = new File(dlDir, libsLux + "-" + version + ".jar");
+			if (! takeAlreadyDownloaded(libDownloaded, libsLux)) {
+				downloadOK &= getSikulixJarFromMaven(libsLux, dlDir, null, libsLux);
+			} else {
+				copyFromDownloads(libDownloaded, libsLux, jarsList[8]);
+			}
+    }
+    if (getIDE || getAPI) {
+			localJar = new File(workDir, localAPI).getAbsolutePath();
+      downloadOK &= download(Settings.downloadBaseDir, dlDir, downloadAPI, localJar, "Java API");
+		}
 		if (getIDE) {
 			localJar = new File(workDir, localIDE).getAbsolutePath();
       dlOK = download(Settings.downloadBaseDir, dlDir, downloadIDE, localJar, "IDE/Scripting");
@@ -856,23 +955,46 @@ public class RunSetup {
 		}
 		if (getJython) {
 			targetJar = new File(workDir, localJython).getAbsolutePath();
-      downloadOK = download(Settings.downloadBaseDir, dlDir, downloadJython, targetJar, "Jython");
-			downloadOK &= dlOK;
+      downloadOK &= getJarFromMaven(Settings.SikuliJythonMaven, dlDir, targetJar, "Jython");
 		}
 		if (getJRuby) {
 			targetJar = new File(workDir, localJRuby).getAbsolutePath();
-      downloadOK = download(Settings.downloadBaseDir, dlDir, downloadJRuby, targetJar, "JRuby");
-			downloadOK &= dlOK;
+      downloadOK &= getJarFromMaven(Settings.SikuliJRubyMaven, dlDir, targetJar, "JRuby");
 			if (downloadOK && getJRubyAddOns) {
 				targetJar = new File(workDir, localJRubyAddOns).getAbsolutePath();
-        downloadOK = download(Settings.downloadBaseDir, dlDir, downloadJRubyAddOns, targetJar, "JRubyAddOns");
-				downloadOK &= dlOK;
+        downloadOK &= download(Settings.downloadBaseDir, dlDir, downloadJRubyAddOns, targetJar, "JRubyAddOns");
 			}
 		}
 		if (getTess) {
+			String langTess = "eng";
 			targetJar = new File(workDir, localTess).getAbsolutePath();
-      downloadOK = download(Settings.downloadBaseDir, dlDir, downloadTess, targetJar, "Tesseract");
-			downloadOK &= dlOK;
+      String xTess = Settings.tessData.get(langTess);
+      String[] xTessNames = xTess.split("/");
+      String xTessName = xTessNames[xTessNames.length - 1];
+			downloadOK &= download(xTess, dlDir, null, "nocopy", null);
+      log(lvl, "trying to extract from: %s", xTessName);
+			Archiver archiver = ArchiverFactory.createArchiver("tar", "gz");
+			archiver.extract(new File(dlDir, "tesseract-ocr-3.02.eng.tar.gz"), new File(dlDir));
+			File fTess = new File(dlDir, "tesseract-ocr/tessdata");
+			if (!fTess.exists()) {
+				log1(-1, "Download: tessdata: version: eng - did not work");
+				downloadOK = false;
+			}
+			File fTessData = new File(dlDir, "tessdata-" + langTess);
+      log(lvl, "preparing the tessdata stuff in %s", fTessData.getAbsolutePath());
+			fTessData.mkdirs();
+			FileManager.xcopy(fTess.getAbsolutePath(), fTessData.getAbsolutePath());
+			FileManager.deleteFileOrFolder(fTess.getParent());
+			loader.export(runningJarURL, "tessdata#", fTessData.getAbsolutePath());
+      log (lvl, "finally preparing %s", localTess);
+			fTargetJar = (new File(workDir, localTemp));
+			targetJar = fTargetJar.getAbsolutePath();
+			String tessJar = new File(workDir, localTess).getAbsolutePath();
+			downloadOK &= FileManager.buildJar(targetJar, new String[]{},
+							new String[]{fTessData.getAbsolutePath()},
+							new String[]{"META-INF/libs/tessdata"}, null);
+			downloadOK &= handleTempAfter(targetJar, tessJar);
+      FileManager.deleteFileOrFolder(fTessData.getAbsolutePath());
 		}
 		if (getRServer) {
 			targetJar = new File(workDir, localRServer).getAbsolutePath();
@@ -887,7 +1009,7 @@ public class RunSetup {
 		if (!downloadOK) {
 			popError("Some of the downloads did not complete successfully.\n"
 							+ "Check the logfile for possible error causes.\n\n"
-							+ "If you think, setup's inline download is blocked somehow on,\n"
+							+ "If you think, setup's inline download is blocked somehow on\n"
 							+ "your system, you might download the appropriate raw packages manually\n"
 							+ "into the folder Downloads in the setup folder and run setup again.\n\n"
 							+ "download page: " + Settings.downloadBaseDirWeb + "\n"
@@ -900,7 +1022,7 @@ public class RunSetup {
     //</editor-fold>
 
 		//<editor-fold defaultstate="collapsed" desc="option setup: add needed stuff">
-		if (!getIDE && !getJava) {
+		if (!getIDE && !getAPI) {
 			log1(lvl, "Nothing else to do");
 			System.exit(0);
 		}
@@ -908,12 +1030,13 @@ public class RunSetup {
 		if (Settings.isLinux()) {
 			File linuxLibsDir = new File(workDir, "libs");
 			linuxLibsDir.mkdir();
-			if (popAsk("If you have prepared your own libVisionProxy.so,\n"
-							+ "then place a copy of it into the folder libs at:\n"
-							+  linuxLibsDir.getAbsolutePath() + "\n"
-							+ "Click YES if you have (be sure, it is there)\n"
+			if (popAsk("If you want/need to build\n"
+							+ "or have already built your own libVisionProxy.so,\n"
+							+ "Then Click YES\n"
 							+ "Click NO to pack the bundled libs to the jars.")) {
 				shouldPackLibs = false;
+//							+ "then place a copy of it into the folder libs at:\n"
+//							+  linuxLibsDir.getAbsolutePath() + "\n"
 			}
       if (test) {
         shouldPackLibs = true;
@@ -923,27 +1046,27 @@ public class RunSetup {
 		boolean success = true;
 		FileManager.JarFileFilter libsFilter = new FileManager.JarFileFilter() {
 			@Override
-			public boolean accept(ZipEntry entry) {
+			public boolean accept(ZipEntry entry, String jarname) {
 				if (forAllSystems) {
 					if (!shouldPackLibs && entry.getName().startsWith("META-INF/libs/linux")
 									&& entry.getName().contains("VisionProxy")) {
 						return false;
 					}
 					return true;
-				} else if (Settings.isWindows()) {
+				} else if (forSystemWin) {
 					if (entry.getName().startsWith("META-INF/libs/mac")
 									|| entry.getName().startsWith("META-INF/libs/linux")
 									|| entry.getName().startsWith("jxgrabkey")) {
 						return false;
 					}
-				} else if (Settings.isMac()) {
+				} else if (forSystemMac) {
 					if (entry.getName().startsWith("META-INF/libs/windows")
 									|| entry.getName().startsWith("META-INF/libs/linux")
 									|| entry.getName().startsWith("com.melloware.jintellitype")
 									|| entry.getName().startsWith("jxgrabkey")) {
 						return false;
 					}
-				} else if (Settings.isLinux()) {
+				} else if (forSystemLux) {
 					if (entry.getName().startsWith("META-INF/libs/windows")
 									|| entry.getName().startsWith("META-INF/libs/mac")
 									|| entry.getName().startsWith("com.melloware.jintellitype")) {
@@ -957,21 +1080,20 @@ public class RunSetup {
 			}
 		};
 
-		String[] jarsList = new String[]{null, null, null, null, null, null};
-		String localTemp = "sikulixtemp.jar";
 		splash = showSplash("Now adding needed stuff to selected jars.", "please wait - may take some seconds ...");
 
-		jarsList[1] = (new File(workDir, localSetup)).getAbsolutePath();
+		jarsList[1] = (new File(workDir, localAPI)).getAbsolutePath();
+
 		if (getTess) {
 			jarsList[2] = (new File(workDir, localTess)).getAbsolutePath();
 		}
 
-		if (success && getJava) {
+		if (success && getAPI) {
 			log1(lvl, "adding needed stuff to sikulixapi.jar");
-			localJar = (new File(workDir, localJava)).getAbsolutePath();
+			localJar = (new File(workDir, localAPI)).getAbsolutePath();
 			targetJar = (new File(workDir, localTemp)).getAbsolutePath();
 			success &= FileManager.buildJar(targetJar, jarsList, null, null, libsFilter);
-			success &= handleTempAfter(localTemp, localJar);
+			success &= handleTempAfter(targetJar, localJar);
 		}
 
 		if (success && getIDE) {
@@ -989,64 +1111,31 @@ public class RunSetup {
 			}
 			targetJar = (new File(workDir, localTemp)).getAbsolutePath();
 			success &= FileManager.buildJar(targetJar, jarsList, null, null, libsFilter);
-			success &= handleTempAfter(localTemp, localJar);
+			success &= handleTempAfter(targetJar, localJar);
 		}
 
-		if (getJython) {
-			new File(workDir, localJython).delete();
-		}
-		if (getJRuby) {
-			new File(workDir, localJRuby).delete();
-			if (getJRubyAddOns) {
-        new File(workDir, localJRubyAddOns).delete();
+    for (int i = (getAPI ? 2 : 1); i < jarsList.length; i++) {
+      if (jarsList[i] != null) {
+        new File(jarsList[i]).delete();
       }
-		}
-		if (getTess) {
-			new File(workDir, localTess).delete();
-		}
-
-//		if (Settings.isMac() && getIDE && success) {
-//			closeSplash(splash);
-//			log0(lvl, "preparing Mac app as SikulixUtil-IDE.app");
-//			splash = showSplash("Now preparing Mac app SikulixUtil-IDE.app.", "please wait - may take some seconds ...");
-//			forAllSystems = false;
-//			targetJar = (new File(workDir, localMacAppIDE)).getAbsolutePath();
-//			jarsList = new String[]{(new File(workDir, localIDE)).getAbsolutePath()};
-//			success &= FileManager.buildJar(targetJar, jarsList, null, null, libsFilter);
-//		}
+    }
 		closeSplash(splash);
 
-		ResourceLoader loader = ResourceLoader.get();
-		if (success && (getIDE)) {
-			log1(lvl, "exporting commandfiles");
-			splash = showSplash("Now exporting commandfiles.", "please wait - may take some seconds ...");
-
-			if (Settings.isWindows()) {
-				if (getIDE) {
-					loader.export("Commands/windows#" + runsikulix + ".cmd", workDir);
-				}
-
-			} else if (Settings.isMac()) {
-				if (getIDE) {
-					String fmac = new File(workDir, folderMacAppContent).getAbsolutePath();
-//					loader.export("Commands/mac#" + runsikulix, fmac);
-					loader.export("Commands/mac#" + runsikulix, workDir);
-//					loader.doSomethingSpecial("runcmd", new String[]{"chmod", "ugo+x",
-//						new File(fmac, runsikulix).getAbsolutePath()});
-//					loader.doSomethingSpecial("runcmd", new String[]{"chmod", "ugo+x",
-//						new File(fmac, "MacOS/droplet").getAbsolutePath()});
-					ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, runsikulix).getAbsolutePath()});
-//					FileManager.deleteFileOrFolder(new File(workDir, localMacApp).getAbsolutePath());
-				}
-			} else if (Settings.isLinux()) {
-				if (getIDE) {
-					loader.export("Commands/linux#" + runsikulix, workDir);
-					ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, runsikulix).getAbsolutePath()});
-					ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, localIDE).getAbsolutePath()});
-				}
-			}
-			closeSplash(splash);
-		}
+    if (success && getIDE) {
+      log1(lvl, "exporting commandfiles");
+      splash = showSplash("Now exporting commandfiles.", "please wait - may take some seconds ...");
+      if (Settings.isWindows()) {
+        loader.export(runningJarURL, "Commands/windows#" + runsikulix + ".cmd", workDir);
+      } else if (Settings.isMac()) {
+        loader.export(runningJarURL, "Commands/mac#" + runsikulix, workDir);
+        ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, runsikulix).getAbsolutePath()});
+      } else if (Settings.isLinux()) {
+        loader.export(runningJarURL, "Commands/linux#" + runsikulix, workDir);
+        ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, runsikulix).getAbsolutePath()});
+        ResourceLoader.get().runcmd(new String[]{"chmod", "ugo+x", new File(workDir, localIDE).getAbsolutePath()});
+      }
+      closeSplash(splash);
+    }
 		if (!success) {
 			popError("Bad things happened trying to add native stuff to selected jars --- terminating!");
 			terminate("Adding stuff to jars did not work");
@@ -1055,47 +1144,30 @@ public class RunSetup {
 		//</editor-fold>
 
 		//<editor-fold defaultstate="collapsed" desc="option setup: environment setup and test">
-		log1(lvl, "trying to set up the environment");
-		splash = showSplash("Now trying to set up Sikuli environment!", "please wait - may take some seconds ...");
 		File folderLibs = new File(workDir, "libs");
-
 		if (folderLibs.exists()) {
 			FileManager.deleteFileOrFolder(folderLibs.getAbsolutePath());
 		}
 		folderLibs.mkdirs();
 
-		if (loader.check(Settings.SIKULI_LIB)) {
-			closeSplash(splash);
-			splash = showSplash(" ", "Environment seems to be ready!");
-			closeSplash(splash);
-		} else {
-			closeSplash(splash);
-			popError("Something serious happened! Sikuli not useable!\n"
-							+ "Check the error log at " + (logfile == null ? "printout" : logfile));
-			terminate("Setting up environment did not work");
-		}
-
-    URL uTess = null;
-    if (getJava) {
+    if (getAPI) {
 			log1(lvl, "Trying to run functional test: JAVA-API");
 			splash = showSplash("Trying to run functional test(s)", "Java-API: org.sikuli.script.Sikulix.testSetup()");
-			if (!Sikulix.addToClasspath(localJarJava.getAbsolutePath())) {
+			if (!Sikulix.addToClasspath(localJarAPI.getAbsolutePath())) {
 				closeSplash(splash);
 				log0(-1, "Java-API test: ");
 				popError("Something serious happened! Sikuli not useable!\n"
 								+ "Check the error log at " + (logfile == null ? "printout" : logfile));
 				terminate("Functional test JAVA-API did not work", 1);
 			}
+			URL apiJarUrl = loader.setApiJarURL(FileManager.slashify(localJarAPI.getAbsolutePath(), false));
 			try {
 				log0(lvl, "trying to run org.sikuli.script.Sikulix.testSetup()");
-				loader.setItIsJython(); // export Lib folder
 				if (getTess) {
-          try {
-            uTess = (new URI("file", localJarJava.getAbsolutePath(), null)).toURL();
-          } catch (Exception ex){ }
-          ResourceLoader.get().exportTessdata(uTess);
+          loader.export(apiJarUrl, "META-INF#libs/tessdata/", workDir);
           getTess = false;
 				}
+				loader.export(apiJarUrl, "#Lib/", workDir);
 				Class sysclass = URLClassLoader.class;
 				Class SikuliCL = sysclass.forName("org.sikuli.script.Sikulix");
 				log0(lvl, "class found: " + SikuliCL.toString());
@@ -1128,11 +1200,9 @@ public class RunSetup {
 								+ "Check the error log at " + (logfile == null ? "printout" : logfile));
 				terminate("Functional test IDE did not work", 1);
 			}
+			URL ideJarUrl = loader.setApiJarURL(FileManager.slashify(localJarIDE.getAbsolutePath(), false));
       if (getTess) {
-        try {
-          uTess = (new URI("file", localJarIDE.getAbsolutePath(), null)).toURL();
-        } catch (Exception ex){ }
-        ResourceLoader.get().exportTessdata(uTess);
+        loader.export(ideJarUrl, "META-INF#libs/tessdata/", workDir);
       }
       String testMethod;
 			if (getJython) {
@@ -1245,27 +1315,46 @@ public class RunSetup {
         return false;
       }
 
-      File jythonJar = new File(Settings.SikuliJython);
-      File jrubyJar = new File(Settings.SikuliJRuby);
-      String ideFat = "sikulix-complete-" + Settings.SikuliProjectVersion + "-ide-fat.jar";
-      File fIDEFat = new File(projectDir, "IDEFat/target/" + ideFat);
-      if (!fIDEFat.exists()) {
-        log(-1, "createSetupFolder: missing: " + fIDEFat.getAbsolutePath());
-        success = false;
-      }
-      if (!jythonJar.exists()) {
-        Debug.log(3, "createSetupFolder: missing: " + jythonJar.getAbsolutePath());
-        success = false;
-      }
-      if (!jrubyJar.exists()) {
-        Debug.log(3, "createSetupFolder: missing " + jrubyJar.getAbsolutePath());
-        success = false;
+			File fLibsmac, fLibswin, fLibslux, jythonJar, jrubyJar;
+
+			File fIDEPlus = getProjectJarFile(projectDir,
+							"IDEPlus", "sikulix-plus", "-ide-fat.jar");
+			success &= fIDEPlus != null;
+			File fAPIPlus = getProjectJarFile(projectDir,
+							"APIPlus", "sikulixapi-plus", "-plain.jar");
+			success &= fAPIPlus != null;
+
+			fLibsmac = getProjectJarFile(projectDir,
+							"Libsmac", libsMac, ".jar");
+			success &= fLibsmac != null;
+			fLibswin = getProjectJarFile(projectDir,
+							"Libswin", libsWin, ".jar");
+			success &= fLibswin != null;
+			fLibslux = getProjectJarFile(projectDir,
+							"Libslux", libsLux, ".jar");
+			success &= fLibslux != null;
+
+      if (success && !noSetup) {
+        jythonJar = new File(Settings.SikuliJython);
+        if (!jythonJar.exists()) {
+          Debug.log(lvl, "createSetupFolder: missing: " + jythonJar.getAbsolutePath());
+          success = false;
+        }
+
+        jrubyJar = new File(Settings.SikuliJRuby);
+        if (!jrubyJar.exists()) {
+          Debug.log(lvl, "createSetupFolder: missing " + jrubyJar.getAbsolutePath());
+          success = false;
+        }
+      } else {
+        jythonJar = jrubyJar = null;
       }
       String jrubyAddons = "sikulixjrubyaddons-" + Settings.SikuliProjectVersion + "-plain.jar";
       File fJRubyAddOns = new File(projectDir, "JRubyAddOns/target/" + jrubyAddons);
       if (!fJRubyAddOns.exists()) {
-        Debug.log(3, "createSetupFolder: missing: " + fJRubyAddOns.getAbsolutePath());
-        success = false;
+        Debug.log(lvl, "createSetupFolder: missing: " + fJRubyAddOns.getAbsolutePath());
+//TODO JRubyAddOns optimize time of repeated build
+//        success = false;
       }
       if (success) {
         File fDownloads = new File(targetDir, "Downloads");
@@ -1278,27 +1367,41 @@ public class RunSetup {
           fname = setupjar.getAbsolutePath();
           FileManager.xcopy(fname,
                   new File(targetDir, localSetup).getAbsolutePath());
-          fname = fIDEFat.getAbsolutePath();
+          fname = fIDEPlus.getAbsolutePath();
           FileManager.xcopy(fname,
                   new File(fDownloads, downloadIDE).getAbsolutePath());
-          fname = jythonJar.getAbsolutePath();
+          fname = fAPIPlus.getAbsolutePath();
           FileManager.xcopy(fname,
-                  new File(fDownloads, downloadJython).getAbsolutePath());
-          fname = jrubyJar.getAbsolutePath();
-          FileManager.xcopy(fname,
-                  new File(fDownloads, downloadJRuby).getAbsolutePath());
+                  new File(fDownloads, downloadAPI).getAbsolutePath());
+
+					// copy the library jars
+					String fshort;
+					for (File fEntry : new File[]{fLibsmac, fLibswin, fLibslux}) {
+						fname = fEntry.getAbsolutePath();
+						fshort = fEntry.getName();
+						FileManager.xcopy(fname,
+									new File(fDownloads, fshort).getAbsolutePath());
+					}
+
+          if (!noSetup) {
+            fname = jythonJar.getAbsolutePath();
+            FileManager.xcopy(fname,
+                    new File(fDownloads, downloadJython).getAbsolutePath());
+            fname = jrubyJar.getAbsolutePath();
+            FileManager.xcopy(fname,
+                    new File(fDownloads, downloadJRuby).getAbsolutePath());
+          }
           fname = fJRubyAddOns.getAbsolutePath();
-          FileManager.xcopy(fname,
-                  new File(fDownloads, downloadJRubyAddOns).getAbsolutePath());
+          File sname = new File(fDownloads, downloadJRubyAddOns);
+          if (fJRubyAddOns.exists()) {
+            FileManager.xcopy(fname, sname.getAbsolutePath());
+          }
           fname = new File(projectDir, "Remote/target/"
                   + "sikulixremote-" + Settings.SikuliProjectVersion + ".jar").getAbsolutePath();
           FileManager.xcopy(fname, new File(fDownloads, downloadRServer).getAbsolutePath());
-          fname = new File(projectDir, "Tesseract/target/"
-                  + Settings.SikuliProjectVersion + downloadTessSuffix).getAbsolutePath();
-          FileManager.xcopy(fname, new File(fDownloads, downloadTess).getAbsolutePath());
-          fname = new File(projectDir, "MacApp/target/"
-                  + Settings.SikuliProjectVersion + downloadMacAppSuffix).getAbsolutePath();
-          FileManager.xcopy(fname, new File(fDownloads, downloadMacApp).getAbsolutePath());
+//          fname = new File(projectDir, "MacApp/target/"
+//                  + Settings.SikuliProjectVersion + downloadMacAppSuffix).getAbsolutePath();
+//          FileManager.xcopy(fname, new File(fDownloads, downloadMacApp).getAbsolutePath());
         } catch (Exception ex) {
           log(-1, "createSetupFolder: copying files did not work: %s", fname);
           success = false;
@@ -1311,21 +1414,36 @@ public class RunSetup {
     return success;
   }
 
+	private static File getProjectJarFile(String project, String jarFileDir, String jarFilePre, String jarFileSuf) {
+			String jarFileName = getProjectJarFileName(jarFilePre, jarFileSuf);
+      File fJarFile = new File(project, jarFileDir + "/target/" + jarFileName);
+      if (!fJarFile.exists()) {
+        log(-1, "createSetupFolder: missing: " + fJarFile.getAbsolutePath());
+				return null;
+      } else {
+				return fJarFile;
+			}
+	}
+
+  private static String getProjectJarFileName(String jarFilePre, String jarFileSuf) {
+    return String.format("%s-%s%s",jarFilePre, Settings.SikuliProjectVersion, jarFileSuf);
+  }
+
 	private static boolean handleTempAfter(String temp, String target) {
 		boolean success = true;
-		log1(lvl, "trying to remove temp files");
+		log1(lvl, "renaming temp file to target jar:\n%s", target);
 		FileManager.deleteFileOrFolder(target);
 		success &= !new File(target).exists();
 		if (success) {
-			success &= (new File(workDir, temp)).renameTo(new File(target));
+			success &= (new File(temp)).renameTo(new File(target));
 			if (!success) {
-				log1(-1, "rename temp to " + target + " --- trying copy");
+				log1(lvl, "rename did not work --- trying copy");
 				try {
-					FileManager.xcopy(new File(workDir, temp).getAbsolutePath(), target);
+					FileManager.xcopy(new File(temp).getAbsolutePath(), target);
 					success = new File(target).exists();
 					if (success) {
-						FileManager.deleteFileOrFolder(new File(workDir, temp).getAbsolutePath());
-						success = !new File(workDir, temp).exists();
+						FileManager.deleteFileOrFolder(new File( temp).getAbsolutePath());
+						success = !new File( temp).exists();
 					}
 				} catch (IOException ex) {
 					success &= false;
@@ -1381,9 +1499,9 @@ public class RunSetup {
 			log0(lvl, "restoring from backup " + localIDE);
 			new File(backup, localIDE).renameTo(new File(workDir, localIDE));
 		}
-		if (new File(backup, localJava).exists() && !new File(workDir, localJava).exists()) {
-			log0(lvl, "restoring from backup " + localJava);
-			new File(backup, localJava).renameTo(new File(workDir, localJava));
+		if (new File(backup, localAPI).exists() && !new File(workDir, localAPI).exists()) {
+			log0(lvl, "restoring from backup " + localAPI);
+			new File(backup, localAPI).renameTo(new File(workDir, localAPI));
 		}
 		if (new File(backup, localTess).exists() && !new File(workDir, localTess).exists()) {
 			log0(lvl, "restoring from backup " + localTess);
@@ -1622,35 +1740,110 @@ public class RunSetup {
 
 	private static boolean download(String sDir, String tDir, String item, String jar, String itemName) {
 		boolean shouldDownload = true;
-		File downloaded = new File(tDir, item);
-		if (downloaded.exists()) {
-			if (popAsk("In your Setup/Downloads folder you already have: " + itemName + "\n"
-							+ downloaded.getAbsolutePath()
-							+ "\nClick YES, if you want to use this for setup processing\n\n"
-							+ "... or click NO, to download a fresh copy")) {
-				shouldDownload = false;
+		String dlSource;
+		if (item == null) {
+			String[] items = sDir.split("/");
+			item = items[items.length - 1];
+			dlSource = sDir;
+		} else {
+			if (!sDir.endsWith("/")) {
+				sDir += "/";
 			}
+			dlSource = sDir + item;
 		}
+		if (jar == null) {
+			jar = item;
+		} else if ("nocopy".equals(jar)) {
+      jar = null;
+    }
+		if (itemName == null) {
+			itemName = item;
+		}
+		File downloaded = new File(tDir, item);
+		shouldDownload = ! takeAlreadyDownloaded(downloaded, itemName);
 		if (shouldDownload) {
 			JFrame progress = new SplashFrame("download");
-			String fname = FileManager.downloadURL(sDir + item, tDir, progress);
+			String fname = FileManager.downloadURL(dlSource, tDir, progress);
 			progress.dispose();
 			if (null == fname) {
-				log1(-1, "Fatal error 001: not able to download: %s", item);
-				return false;
+				terminate(String.format("Fatal error 001: not able to download: %s", item), 1);
 			}
 		}
-		try {
-			FileManager.xcopy(downloaded.getAbsolutePath(), jar);
-		} catch (IOException ex) {
-			terminate("Unable to copy from Downloads: "
-							+ downloaded.getAbsolutePath() + "\n" + ex.getMessage());
-		}
-		log(lvl, "Copied from Downloads: " + item);
-    if (!shouldDownload) {
-      downloadedFiles = downloadedFiles.replace(item + " ", "");
+    if (jar != null) {
+			copyFromDownloads(downloaded, item, jar);
+      if (!shouldDownload) {
+        downloadedFiles = downloadedFiles.replace(item + " ", "");
+      }
     }
 		return true;
+	}
+
+	private static boolean takeAlreadyDownloaded(File artefact, String itemName) {
+		if (artefact.exists()) {
+			return popAsk("Setup/Downloads folder has: " + itemName + "\n"
+							+ artefact.getAbsolutePath()
+							+ "\nClick YES, if you want to use this for setup processing\n\n"
+							+ "... or click NO, to download a fresh copy");
+		}
+		return false;
+	}
+
+	private static void copyFromDownloads(File artefact, String item, String jar) {
+		try {
+			FileManager.xcopy(artefact.getAbsolutePath(), jar);
+		} catch (IOException ex) {
+			terminate("Unable to copy from Downloads: "
+							+ artefact.getAbsolutePath() + "\n" + ex.getMessage());
+		}
+		log(lvl, "Copied from Downloads: " + item);
+	}
+
+	private static boolean getSikulixJarFromMaven(String src, String targetDir,
+										String targetJar, String itemName) {
+		boolean develop = !Settings.isVersionRelease();
+		String mPath = "";
+		String xml;
+		String xmlContent;
+		String timeStamp = "";
+		String buildNumber = "";
+		String mJar = "";
+		String sikulixMavenGroup = "com/sikulix/";
+    if (targetJar == null) {
+      targetJar = new File(workDir, itemName + ".jar").getAbsolutePath();
+    }
+		if (develop) {
+			String dlMavenSnapshotPath = version + "-SNAPSHOT";
+			String dlMavenSnapshotXML = "maven-metadata.xml";
+			String dlMavenSnapshotPrefix = String.format("%s%s/%s/", sikulixMavenGroup, src, dlMavenSnapshotPath);
+			mPath = Settings.dlMavenSnapshot + dlMavenSnapshotPrefix;
+			xml = mPath + dlMavenSnapshotXML;
+			xmlContent = FileManager.downloadURLtoString(xml);
+			Matcher m = Pattern.compile("<timestamp>(.*?)</timestamp>").matcher(xmlContent);
+			if (m.find()) {
+				timeStamp = m.group(1);
+				m = Pattern.compile("<buildNumber>(.*?)</buildNumber>").matcher(xmlContent);
+				if (m.find()) {
+					buildNumber = m.group(1);
+				}
+			}
+			if (!timeStamp.isEmpty() && !buildNumber.isEmpty()) {
+				mJar = String.format("%s-%s-%s-%s.jar", src, version, timeStamp, buildNumber);
+				log(lvl, "getMavenJar: %s", mJar);
+			} else {
+				log(-1, "Maven download: could not get timestamp or buildnumber from:"
+								+ "\n%s\nwith content:\n", xml, xmlContent);
+			}
+				return download(mPath + mJar, targetDir, null, targetJar, itemName);
+		} else {
+			mPath = String.format("%s%s/%s/", sikulixMavenGroup, src, version);
+			mJar = String.format("%s-%s.jar", src, version);
+			return getJarFromMaven(mPath + mJar, targetDir, targetJar, itemName);
+		}
+	}
+
+	private static boolean getJarFromMaven(String src, String target,
+										String targetJar, String itemName) {
+  	return download(Settings.dlMavenRelease + src, target, null, targetJar, itemName);
 	}
 
 	private static void userTerminated(String msg) {

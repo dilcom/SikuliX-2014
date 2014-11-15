@@ -13,8 +13,11 @@ import java.net.Proxy;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.prefs.Preferences;
+import org.sikuli.script.Image;
 import org.sikuli.script.Sikulix;
 
 /**
@@ -26,6 +29,7 @@ public class Settings {
 
 	private static String me = "Settings: ";
 	private static int lvl = 3;
+  public static boolean noPupUps = false;
 	private static void log(int level, String message, Object... args) {
 		Debug.logx(level, me + message, args);
 	}
@@ -48,8 +52,6 @@ public class Settings {
 	private static final String dlProdLink2 = "/+download/";
 	// used for download of development versions (nightly builds)
 	private static final String dlDevLink = "http://nightly.sikuli.de/";
-	private static final String dlMavenLink = "http://search.maven.org/remotecontent?filepath=";
-
   public static boolean runningSetupInValidContext = false;
   public static String runningSetupInContext = null;
   public static String runningSetupWithJar = null;
@@ -102,9 +104,16 @@ public class Settings {
 	public static String SikuliVersionIDE;
 	public static String SikuliVersionScript;
 	public static String SikuliJythonVersion;
+	public static String SikuliJythonMaven;
 	public static String SikuliJython;
 	public static String SikuliJRubyVersion;
 	public static String SikuliJRuby;
+	public static String SikuliJRubyMaven;
+	public static String dlMavenRelease = "https://repo1.maven.org/maven2/";
+	public static	String dlMavenSnapshot = "https://oss.sonatype.org/content/groups/public/";
+
+	public static Map<String, String> tessData = new HashMap<String, String>();
+
 	//TODO needed ???
 	public static final String libOpenCV = "libopencv_java248";
 
@@ -212,13 +221,15 @@ public class Settings {
         osn = "Linux";
       }
 
-			SikuliLocalRepo = prop.getProperty("sikulixlocalrepo");
+			SikuliLocalRepo = FileManager.slashify(prop.getProperty("sikulixlocalrepo"), true);
 			SikuliJythonVersion = prop.getProperty("sikulixvjython");
-			SikuliJython=SikuliLocalRepo + "/org/Python/jython-standalone/" +
+			SikuliJythonMaven = "org/python/jython-standalone/" +
 							 SikuliJythonVersion + "/jython-standalone-" + SikuliJythonVersion + ".jar";
+			SikuliJython = SikuliLocalRepo + SikuliJythonMaven;
 			SikuliJRubyVersion = prop.getProperty("sikulixvjruby");
-			SikuliJRuby=SikuliLocalRepo + "/org/JRuby/jruby-complete/" +
+			SikuliJRubyMaven = "org/jruby/jruby-complete/" +
 							 SikuliJRubyVersion + "/jruby-complete-" + SikuliJRubyVersion + ".jar";
+			SikuliJRuby = SikuliLocalRepo + SikuliJRubyMaven;
 
       SikuliSystemVersion = osn + System.getProperty("os.version");
       SikuliJavaVersion = "Java" + JavaVersion + "(" + JavaArch + ")" + JREVersion;
@@ -230,6 +241,11 @@ public class Settings {
 			Debug.error("Settings: load version file %s did not work", svf);
 			Sikulix.terminate(999);
 		}
+		tessData.put("eng", "http://tesseract-ocr.googlecode.com/files/tesseract-ocr-3.02.eng.tar.gz");
+	}
+
+	public static boolean isVersionRelease() {
+		return SikuliVersionType.isEmpty();
 	}
 
   public static String getSystemInfo() {
@@ -237,7 +253,7 @@ public class Settings {
   }
 
   public static void getStatus() {
-    System.out.println("***** Information Dump *****");
+    System.out.println("***** System Information Dump *****");
     System.out.println(String.format("*** SystemInfo\n%s", getSystemInfo()));
     System.getProperties().list(System.out);
     System.out.println("*** System Environment");
@@ -250,7 +266,7 @@ public class Settings {
     for (int i = 0; i < urls.length; i++) {
       System.out.println(String.format("%d: %s", i, urls[i]));
     }
-    System.out.println("***** Information Dump ***** end *****");
+    System.out.println("***** System Information Dump ***** end *****");
   }
 
   public static String getValidImageFilename(String fname) {
@@ -287,6 +303,24 @@ public class Settings {
 	public static boolean CheckLastSeen = true;
 	public static float CheckLastSeenSimilar = 0.95f;
 	public static boolean UseImageFinder = false;
+
+  private static int ImageCache = 64;
+
+	/**
+	 * set the maximum to be used for the {@link Image} cache
+	 * <br>the start up value is 64 (meaning MB)
+	 * <br>using 0 switches off caching and clears the cache in that moment
+	 * @param max cache size in MB
+	 */
+	public static void setImageCache(int max) {
+    if (ImageCache > max) {
+      Image.clearCache(max);
+    }
+    ImageCache = max;
+  }
+  public static int getImageCache() {
+    return ImageCache;
+  }
 
 	public static double DelayBeforeDrop = 0.3;
 	public static double DelayAfterDrag = 0.3;
@@ -432,7 +466,7 @@ public class Settings {
 	}
 
   public static boolean isMac10() {
-    if (isMac() && "10.10".equals(Settings.getOSVersion())) {
+    if (isMac() && Settings.getOSVersion().startsWith("10.10")) {
       return true;
     }
     return false;

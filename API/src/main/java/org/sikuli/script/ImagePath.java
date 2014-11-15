@@ -148,13 +148,20 @@ public class ImagePath {
   }
 
   /**
-   * a convenience for the scripting level
+   * the path list as string array
    *
    * @return an array of the file path's currently in the path list
    */
-  public static String[] getImagePath() {
-    String[] paths = new String[getCount()];
+  public static String[] get() {
     int i = 0;
+    for (PathEntry p : imagePaths) {
+      if (p == null) {
+        continue;
+      }
+      i++;
+    }
+    String[] paths = new String[i];
+    i = 0;
     for (PathEntry p : imagePaths) {
       if (p == null) {
         continue;
@@ -167,9 +174,8 @@ public class ImagePath {
   /**
    * print the list of path entries
    */
-  public static void dump() {
-    log(0, "ImagePath has %d entries (valid %d)", imagePaths.size(), getCount());
-    log(lvl, "start of list ----------------------------");
+  public static void dump(int lvl) {
+    log(lvl, "ImagePath has %d entries (valid %d)", imagePaths.size(), getCount());
     for (PathEntry p : imagePaths) {
       if (p == null) {
         log(lvl, "Path: NULL");
@@ -177,7 +183,6 @@ public class ImagePath {
         log(lvl, "Path: given: %s\nis: %s", p.path, p.getPath());
       }
     }
-    log(lvl, "end of list ----------------------------");
   }
 
   private static boolean bundleEquals(Object path) {
@@ -238,7 +243,7 @@ public class ImagePath {
       }
       if (fURL == null) {
         log(-1, "find: not on image path: " + fname);
-        dump();
+        dump(lvl);
       }
 	    return fURL;
     }
@@ -325,7 +330,7 @@ public class ImagePath {
       }
 			return true;
     } else {
-      log(-1, "addImagePath: not valid: %s %s", mainPath,
+      log(-1, "add: not valid: %s %s", mainPath,
 							(altPath == null ? "" : " / " + altPath));
     }
     return false;
@@ -452,7 +457,7 @@ public class ImagePath {
       if (bundleEquals(path)) {
 				return true;
 			}
-      Image.clearImageNames();
+      Image.purge(bundlePath);
 			if (path.exists()) {
 				imagePaths.set(0, path);
 				Settings.BundlePath = path.getPath();
@@ -461,14 +466,17 @@ public class ImagePath {
 				return true;
 			}
 		}
-		String wf = System.getProperty("user.dir");
-		log(-1, "setBundlePath: invalid BundlePath: %s \nusing working folder: %s",
-						bPath, wf);
-		if (!new File(wf).exists()) {
-			log(-1, "setBundlePath: Fatal error: working folder does not exist --- terminating");
-			System.exit(1);
-		}
-		return setBundlePath(wf);
+    if (getCount() ==0) {
+      String wf = System.getProperty("user.dir");
+      log(-1, "setBundlePath: invalid BundlePath: %s \nusing working folder: %s",
+              bPath, wf);
+      if (!new File(wf).exists()) {
+        log(-1, "setBundlePath: Fatal error: working folder does not exist --- terminating");
+        System.exit(1);
+      }
+      return setBundlePath(wf);
+    }
+    return true;
   }
 
   /**
@@ -513,6 +521,7 @@ public class ImagePath {
 			try {
 				cls = Class.forName(klassName);
 			} catch (ClassNotFoundException ex) {
+        log(-1,"add: class %s not found on classpath.", klassName);
 			}
 			if (cls != null) {
 				CodeSource codeSrc = cls.getProtectionDomain().getCodeSource();

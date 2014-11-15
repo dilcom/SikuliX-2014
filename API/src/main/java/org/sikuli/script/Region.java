@@ -92,29 +92,41 @@ public class Region {
   private long lastSearchTime;
   private long lastFindTime;
 
+	/**
+	 * in case of not found the total wait time
+	 * @return the duration of the last find op
+	 */
+	public long getLastTime() {
+		return lastFindTime;
+	}
+
   /**
    * the area constants for use with get()
    */
-  public static final int N2 = 12, NORTH = N2;
-  public static final int N3 = 13, NORTH_NORTH = N3;
-  public static final int E2 = 22, EAST = E2;
-  public static final int E3 = 23, EAST_EAST = E3;
-  public static final int S2 = 32, SOUTH = S2;
-  public static final int S3 = 33, SOUTH_SOUTH = S3;
-  public static final int W2 = 42, WEST = W2;
-  public static final int W3 = 43, WEST_WEST = W3;
-  public static final int NW = 10, NORTH_WEST = NW;
-  public static final int NE = 11, NORTH_EAST = NE;
-  public static final int SW = 10, SOUTH_WEST = SW;
-  public static final int SE = 11, SOUTH_EAST = SE;
-  public static final int MV = 50, MID_VERTICAL = MV;
-  public static final int MH = 51, MID_HORIZONTAL = MH;
-  public static final int M2 = 52, MIDDLE_HALF = M2;
-  public static final int M3 = 53, MIDDLE_THIRD = M3;
-  public static final int EN = NE, EAST_NORTH = NE;
-  public static final int ES = SE, EAST_SOUTH = SE;
-  public static final int WN = NW, WEST_NORTH = NW;
-  public static final int WS = SW, WEST_SOUTH = SW;
+  public static final int NW = 300, NORTH_WEST = NW, TL = NW;
+  public static final int NM = 301, NORTH_MID = NM, TM = NM;
+  public static final int NE = 302, NORTH_EAST = NE, TR = NE;
+  public static final int EM = 312, EAST_MID = EM, RM = EM;
+  public static final int SE = 322, SOUTH_EAST = SE, BR = SE;
+  public static final int SM = 321, SOUTH_MID = SM, BM = SM;
+  public static final int SW = 320, SOUTH_WEST = SW, BL = SW;
+  public static final int WM = 310, WEST_MID = WM, LM = WM;
+  public static final int MM = 311, MIDDLE = MM, M3 = MM;
+  public static final int TT = 200;
+  public static final int RR = 201;
+  public static final int BB = 211;
+  public static final int LL = 210;
+  public static final int NH = 202, NORTH = NH, TH = NH;
+  public static final int EH = 221, EAST = EH, RH = EH;
+  public static final int SH = 212, SOUTH = SH, BH = SH;
+  public static final int WH = 220, WEST = WH, LH = WH;
+  public static final int MV = 441, MID_VERTICAL = MV, CV = MV;
+  public static final int MH = 414, MID_HORIZONTAL = MH, CH = MH;
+  public static final int M2 = 444, MIDDLE_BIG = M2, C2 = M2;
+  public static final int EN = NE, EAST_NORTH = NE, RT = TR;
+  public static final int ES = SE, EAST_SOUTH = SE, RB = BR;
+  public static final int WN = NW, WEST_NORTH = NW, LT = TL;
+  public static final int WS = SW, WEST_SOUTH = SW, LB = BL;
 
   /**
    * to support a raster over the region
@@ -302,6 +314,14 @@ public class Region {
     }
     return rect;
   }
+
+	/**
+	 * Check wether thie Region is contained by any of the available screens
+	 * @return true if yes, false otherwise
+	 */
+	public boolean isValid() {
+		return scr != null;
+	}
   //</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="Constructors to be used with Jython">
@@ -763,7 +783,7 @@ public class Region {
    * Sets a new Screen for this region.
    *
    * @param scr the containing screen object
-	 * @return
+	 * @return the region itself
    */
   protected Region setScreen(IScreen scr) {
     initScreen(scr);
@@ -774,7 +794,7 @@ public class Region {
    * Sets a new Screen for this region.
    *
    * @param id the containing screen object's id
-	 * @return
+	 * @return the region itself
    */
   protected Region setScreen(int id) {
     return setScreen(Screen.getScreen(id));
@@ -1301,7 +1321,7 @@ public class Region {
   }
 
   /**
-   * create a region enlarged 50 pixels on each side
+   * create a region enlarged Settings.DefaultPadding pixels on each side
    *
    * @return the new region
    * @deprecated to be like AWT Rectangle API use grow() instead
@@ -1321,6 +1341,15 @@ public class Region {
   @Deprecated
   public Region nearby(int range) {
     return grow(range, range);
+  }
+
+  /**
+   * create a region enlarged n pixels on each side (n = Settings.DefaultPadding = 50 default)
+   *
+   * @return the new region
+   */
+  public Region grow() {
+    return grow(Settings.DefaultPadding, Settings.DefaultPadding);
   }
 
   /**
@@ -1571,224 +1600,281 @@ public class Region {
     return Region.create(r.x, r.y, r.width, r.height, scr);
   }
 
-  /**
-   * select the specified part of the region <br>
-   * example for upper part of region (NORTH) <br>
-   * NORTH (N2) - upper half <br>
-   * NORTH_NORTH (N3) - middle third in upper third <br>
-   * NORTH_EAST (NE) - right third in upper third <br>
-   * NORTH_WEST (NW) - left third in upper third <br>
-   * ... similar for the other directions <br>
-   * MID_VERTICAL (MV) half of width vertically centered <br>
-   * MID_HORIZONTAL (MV) half of height horizontally centered <br>
-   * MID_HALF (M2) half of width / half of height centered <br>
-   * MID_THIRD (M3) third of width / third of height centered <br>
-   *
-   * @param part the part to get
-   * @return new region
-   */
-  public Region get(int part) {
-    return Region.create(getRectangle(x, y, w, h, part));
-  }
+  //</editor-fold>
 
-  static protected Rectangle getRectangle(int X, int Y, int W, int H, int part) {
-    int gw2 = (int) ((W + 1f) / 2f);
-    int gw3 = (int) ((W + 2f) / 3f);
-    int gw4 = (int) ((W) / 4f);
-    int gh2 = (int) ((H + 1f) / 2f);
-    int gh3 = (int) ((H + 2f) / 3f);
-    int gh4 = (int) ((H) / 4f);
-    int ir = (int) (part / 10);
-    int irr = part - ir * 10;
-    Rectangle rect = new Rectangle(X, Y, W, H);;
-    switch (ir) {
-      case 1:
-        switch (irr) {
-          case 0:
-            rect = new Rectangle(X, Y, gw3, gh3);
-            break;
-          case 1:
-            rect = new Rectangle(X + W - gw3, Y, gw3, gh3);
-            break;
-          case 2:
-            rect = new Rectangle(X, Y, W, gh2);
-            break;
-          case 3:
-            rect = new Rectangle(X + gw3, Y, gw3, gh3);
-            break;
-        }
-        break;
-      case 2:
-        break;
-      case 3:
-        break;
-      case 4:
-        break;
-      case 5:
-        switch (irr) {
-          case 0:
-            rect = new Rectangle(X + gw3, Y, gw3, H);
-            break;
-          case 1:
-            rect = new Rectangle(X, Y + gh3, W, gh3);
-            break;
-          case 2:
-            rect = new Rectangle(X + gw4, Y + gh4, 2 * gw4, 2 * gh4);
-            break;
-          case 3:
-            rect = new Rectangle(X + gw3, Y + gh3, gw3, gh3);
-            break;
-        }
-        break;
-    }
-    return rect;
-  }
+  //<editor-fold defaultstate="collapsed" desc="parts of a Region">
+	/**
+	 * select the specified part of the region.
+	 *
+	 * <br>Constants for the top parts of a region (Usage: Region.CONSTANT)<br>
+	 * shown in brackets: possible shortcuts for the part constant<br>
+	 * NORTH (NH, TH) - upper half <br>
+	 * NORTH_WEST (NW, TL) - left third in upper third <br>
+	 * NORTH_MID (NM, TM) - middle third in upper third <br>
+	 * NORTH_EAST (NE, TR) - right third in upper third <br>
+	 * ... similar for the other directions: <br>
+	 * right side: EAST (Ex, Rx)<br>
+	 * bottom part: SOUTH (Sx, Bx) <br>
+	 * left side: WEST (Wx, Lx)<br>
+	 * <br>
+	 * specials for quartered:<br>
+	 * TT top left quarter<br>
+	 * RR top right quarter<br>
+	 * BB bottom right quarter<br>
+	 * LL bottom left quarter<br>
+	 * <br>
+	 * specials for the center parts:<br>
+	 * MID_VERTICAL (MV, CV) half of width vertically centered <br>
+	 * MID_HORIZONTAL (MH, CH) half of height horizontally centered <br>
+	 * MID_BIG (M2, C2) half of width / half of height centered <br>
+	 * MID_THIRD (MM, CC) third of width / third of height centered <br>
+	 * <br>
+	 * Based on the scheme behind these constants there is another possible usage:<br>
+	 * specify part as e 3 digit integer
+	 * where the digits xyz have the following meaning<br>
+	 * 1st x: use a raster of x rows and x columns<br>
+	 * 2nd y: the row number of the wanted cell<br>
+	 * 3rd z: the column number of the wanted cell<br>
+	 * y and z are counting from 0<br>
+	 * valid numbers: 200 up to 999 (&lt; 200 are invalid and return the region itself) <br>
+	 * example: get(522) will use a raster of 5 rows and 5 columns and return the cell in the middle<br>
+	 * special cases:<br>
+	 * if either y or z are == or &gt; x: returns the respective row or column<br>
+	 * example: get(525) will use a raster of 5 rows and 5 columns and return the row in the middle<br>
+	 * <br>
+	 * internally this is based on {@link #setRaster(int, int) setRaster}
+	 * and {@link #getCell(int, int) getCell} <br>
+	 * <br>
+	 * If you need only one row in one column with x rows or
+	 * only one column in one row with x columns you can use {@link #getRow(int, int) getRow} or {@link #getCol(int, int) getCol}
+	 * @param part the part to get (Region.PART long or short)
+	 * @return new region
+	 */
+	public Region get(int part) {
+		return Region.create(getRectangle(getRect(), part));
+	}
 
-  /**
-   * store info: this region is divided vertically into n even rows <br>
-   * a preparation for using getRow()
-   *
-   * @param n number of rows
-   * @return the top row
-   */
-  public Region setRows(int n) {
-    return setRaster(n, 0);
-  }
+	protected static Rectangle getRectangle(Rectangle rect, int part) {
+		if (part < 200 || part > 999) {
+			return rect;
+		}
+		Region r = Region.create(rect);
+		int pTyp = (int) (part / 100);
+		int pPos = part - pTyp * 100;
+		int pRow = (int) (pPos / 10);
+		int pCol = pPos - pRow * 10;
+		r.setRaster(pTyp, pTyp);
+		if (pTyp == 3) {
+			// NW = 300, NORTH_WEST = NW;
+			// NM = 301, NORTH_MID = NM;
+			// NE = 302, NORTH_EAST = NE;
+			// EM = 312, EAST_MID = EM;
+			// SE = 322, SOUTH_EAST = SE;
+			// SM = 321, SOUTH_MID = SM;
+			// SW = 320, SOUTH_WEST = SW;
+			// WM = 310, WEST_MID = WM;
+			// MM = 311, MIDDLE = MM, M3 = MM;
+			return r.getCell(pRow, pCol).getRect();
+		}
+		if (pTyp == 2) {
+			// NH = 202, NORTH = NH;
+			// EH = 221, EAST = EH;
+			// SH = 212, SOUTH = SH;
+			// WH = 220, WEST = WH;
+			if (pRow > 1) {
+				return r.getCol(pCol).getRect();
+			} else if (pCol > 1) {
+				return r.getRow(pRow).getRect();
+			}
+			return r.getCell(pRow, pCol).getRect();
+		}
+		if (pTyp == 4) {
+			// MV = 441, MID_VERTICAL = MV;
+			// MH = 414, MID_HORIZONTAL = MH;
+			// M2 = 444, MIDDLE_BIG = M2;
+			if (pRow > 3) {
+				if (pCol > 3 ) {
+					return r.getCell(1, 1).union(r.getCell(2, 2)).getRect();
+				}
+				return r.getCell(0, 1).union(r.getCell(3, 2)).getRect();
+			} else if (pCol > 3) {
+				return r.getCell(1, 0).union(r.getCell(2, 3)).getRect();
+			}
+			return r.getCell(pRow, pCol).getRect();
+		}
+		return rect;
+	}
 
-  /**
-   * store info: this region is divided horizontally into n even columns <br>
-   * a preparation for using getCol()
-   *
-   * @param n number of columns
-   * @return the leftmost column
-   */
-  public Region setCols(int n) {
-    return setRaster(0, n);
-  }
+	/**
+	 * store info: this region is divided vertically into n even rows <br>
+	 * a preparation for using getRow()
+	 *
+	 * @param n number of rows
+	 * @return the top row
+	 */
+	public Region setRows(int n) {
+		return setRaster(n, 0);
+	}
+
+	/**
+	 * store info: this region is divided horizontally into n even columns <br>
+	 * a preparation for using getCol()
+	 *
+	 * @param n number of columns
+	 * @return the leftmost column
+	 */
+	public Region setCols(int n) {
+		return setRaster(0, n);
+	}
 
 	/**
 	 *
 	 * @return the number of rows or null
 	 */
 	public int getRows() {
-    return rows;
-  }
+		return rows;
+	}
 
 	/**
 	 *
 	 * @return the row height or 0
 	 */
 	public int getRowH() {
-    return rowH;
-  }
+		return rowH;
+	}
 
 	/**
 	 *
 	 * @return the number of columns or 0
 	 */
 	public int getCols() {
-    return cols;
-  }
+		return cols;
+	}
 
 	/**
 	 *
 	 * @return the columnwidth or 0
 	 */
 	public int getColW() {
-    return colW;
-  }
+		return colW;
+	}
 
-  /**
-   * store info: this region is divided into a raster of even cells <br>
-   * a preparation for using getCell()
-   *
-   * @param r number of rows
-   * @param c number of columns
-   * @return the topleft cell
-   */
-  public Region setRaster(int r, int c) {
-    rows = r;
-    cols = c;
-    if (r > 0) {
-      rowH = (int) (h / r);
-      rowHd = h - r * rowH;
-    }
-    if (c > 0) {
-      colW = (int) (w / c);
-      colWd = w - c * colW;
-    }
-    return getCell(0, 0);
-  }
+	/**
+	 * Can be used to check, wether the Region currently has a valid raster
+	 * @return true if it has a valid raster (either getCols or getRows or both would return &gt; 0)
+	 * false otherwise
+	 */
+	public boolean isRasterValid() {
+		return (rows > 0 || cols > 0);
+	}
 
-  /**
-   * get the specified row counting from 0, if rows or raster are setup negative counts reverse from the end (last = -1)
-   * values outside range are 0 or last respectively
-   *
-   * @param r row number
-   * @return the row as new region or the region itself, if no rows are setup
-   */
-  public Region getRow(int r) {
-    if (rows == 0) {
-      return this;
-    }
-    if (r < 0) {
-      r = rows + r;
-    }
-    r = Math.max(0, r);
-    r = Math.min(r, rows - 1);
-    return Region.create(x, y + r * rowH, w, rowH);
-  }
+	/**
+	 * store info: this region is divided into a raster of even cells <br>
+	 * a preparation for using getCell()<br>
+	 * @param r number of rows
+	 * @param c number of columns
+	 * @return the topleft cell
+	 */
+	public Region setRaster(int r, int c) {
+		rows = Math.max(r, h);
+		cols = Math.max(c, w);
+		if (r > 0) {
+			rowH = (int) (h / r);
+			rowHd = h - r * rowH;
+		}
+		if (c > 0) {
+			colW = (int) (w / c);
+			colWd = w - c * colW;
+		}
+		return getCell(0, 0);
+	}
 
-  /**
-   * get the specified column counting from 0, if columns or raster are setup negative counts reverse from the end (last
-   * = -1) values outside range are 0 or last respectively
-   *
-   * @param c column number
-   * @return the column as new region or the region itself, if no columns are setup
-   */
-  public Region getCol(int c) {
-    if (cols == 0) {
-      return this;
-    }
-    if (c < 0) {
-      c = cols + c;
-    }
-    c = Math.max(0, c);
-    c = Math.min(c, cols - 1);
-    return Region.create(x + c * colW, y, colW, h);
-  }
-
-  /**
-   * get the specified cell counting from (0, 0), if a raster is setup <br>
-   * negative counts reverse from the end (last = -1) values outside range are 0 or last respectively
-   *
+	/**
+	 * get the specified row counting from 0, if rows or raster are setup negative counts reverse from the end (last = -1)
+	 * values outside range are 0 or last respectively
+	 *
 	 * @param r row number
-   * @param c column number
-   * @return the cell as new region or the region itself, if no raster is setup
-   */
-  public Region getCell(int r, int c) {
-    if (rows == 0) {
-      return getCol(c);
-    }
-    if (cols == 0) {
-      return getRow(r);
-    }
-    if (rows == 0 && cols == 0) {
-      return this;
-    }
-    if (r < 0) {
-      r = rows - r;
-    }
-    if (c < 0) {
-      c = cols - c;
-    }
-    r = Math.max(0, r);
-    r = Math.min(r, rows - 1);
-    c = Math.max(0, c);
-    c = Math.min(c, cols - 1);
-    return Region.create(x + c * colW, y + r * rowH, colW, rowH);
-  }
-  //</editor-fold>
+	 * @return the row as new region or the region itself, if no rows are setup
+	 */
+	public Region getRow(int r) {
+		if (rows == 0) {
+			return this;
+		}
+		if (r < 0) {
+			r = rows + r;
+		}
+		r = Math.max(0, r);
+		r = Math.min(r, rows - 1);
+		return Region.create(x, y + r * rowH, w, rowH);
+	}
+
+	public Region getRow(int r, int n) {
+		return this;
+	}
+
+	/**
+	 * get the specified column counting from 0, if columns or raster are setup negative counts reverse from the end (last
+	 * = -1) values outside range are 0 or last respectively
+	 *
+	 * @param c column number
+	 * @return the column as new region or the region itself, if no columns are setup
+	 */
+	public Region getCol(int c) {
+		if (cols == 0) {
+			return this;
+		}
+		if (c < 0) {
+			c = cols + c;
+		}
+		c = Math.max(0, c);
+		c = Math.min(c, cols - 1);
+		return Region.create(x + c * colW, y, colW, h);
+	}
+
+	/**
+	 * divide the region in n columns and select column c as new Region
+	 * @param c the column to select counting from 0 or negative to count from the end
+	 * @param n how many columns to devide in
+	 * @return the selected part or the region itself, if parameters are invalid
+	 */
+	public Region getCol(int c, int n) {
+		Region r = new Region(this);
+		r.setCols(n);
+		return r.getCol(c);
+	}
+
+
+	/**
+	 * get the specified cell counting from (0, 0), if a raster is setup <br>
+	 * negative counts reverse from the end (last = -1) values outside range are 0 or last respectively
+	 *
+	 * @param r row number
+	 * @param c column number
+	 * @return the cell as new region or the region itself, if no raster is setup
+	 */
+	public Region getCell(int r, int c) {
+		if (rows == 0) {
+			return getCol(c);
+		}
+		if (cols == 0) {
+			return getRow(r);
+		}
+		if (rows == 0 && cols == 0) {
+			return this;
+		}
+		if (r < 0) {
+			r = rows - r;
+		}
+		if (c < 0) {
+			c = cols - c;
+		}
+		r = Math.max(0, r);
+		r = Math.min(r, rows - 1);
+		c = Math.max(0, c);
+		c = Math.min(c, cols - 1);
+		return Region.create(x + c * colW, y + r * rowH, colW, rowH);
+	}
+//</editor-fold>
 
   //<editor-fold defaultstate="collapsed" desc="highlight">
   protected void updateSelf() {
@@ -2167,7 +2253,28 @@ public class Region {
     return lastMatch;
   }
 
-  /**
+//TODO 1.2.0 Region.compare as time optimized Region.exists
+	/**
+	 * time optimized Region.exists, when image-size == region-size<br>
+	 * 1.1.x: just using exists(img, 0), sizes not checked
+	 * @param img image file name
+	 * @return the match or null if not equal
+	 */
+		public Match compare(String img) {
+		return compare(Image.create(img));
+	}
+
+	/**
+	 * time optimized Region.exists, when image-size == region-size<br>
+	 * 1.1.x: just using exists(img, 0), sizes not checked
+	 * @param img Image object
+	 * @return the match or null if not equal
+	 */
+	public Match compare(Image img) {
+		return exists(img, 0);
+	}
+
+	/**
    * Check if target exists (with the default autoWaitTimeout)
    *
 	 * @param <PSI> Pattern, String or Image
@@ -3348,6 +3455,20 @@ public class Region {
     Location loc = getLocationFromTarget(target);
     return Mouse.move(loc, this);
   }
+
+	/**
+	 * move the mouse from the current position to the offset position given by the parameters
+	 * @param xoff horizontal offset (&lt; 0 left, &gt; 0 right)
+	 * @param yoff vertical offset (&lt; 0 up, &gt; 0 down)
+   * @return 1 if possible, 0 otherwise
+	 */
+	public int mouseMove(int xoff, int yoff) {
+		try {
+			return mouseMove(Mouse.at().offset(xoff, yoff));
+		} catch (Exception ex) {
+			return 0;
+		}
+	}
 
   /**
    * Move the wheel at the current mouse position<br> the given steps in the given direction: <br >Button.WHEEL_DOWN,

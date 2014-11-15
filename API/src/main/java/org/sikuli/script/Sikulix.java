@@ -25,6 +25,7 @@ import javax.swing.JTextArea;
 import org.sikuli.basics.Debug;
 import org.sikuli.basics.FileManager;
 import org.sikuli.basics.HotkeyManager;
+import org.sikuli.basics.PreferencesUser;
 import org.sikuli.basics.ResourceLoader;
 import org.sikuli.basics.Settings;
 
@@ -37,6 +38,7 @@ public class Sikulix {
 	private static boolean runningHeadless = false;
 
   private static int lvl = 3;
+	private static final String prefNonSikuli = "nonSikuli_";
   private static void log(int level, String message, Object... args) {
     Debug.logx(level, me + message, args);
   }
@@ -159,12 +161,16 @@ public class Sikulix {
   }
 
   public static void terminate(int n) {
+    String msg = "***** Terminating SikuliX Setup after a fatal error"
+                        + (n == 0 ? "*****\n" : " %d *****\n")
+                        +	"SikuliX is not useable!\n"
+                        + "Check the error log at " + Debug.logfile;
     if (Settings.runningSetup) {
-      popError(String.format(
-						"***** Terminating SikuliX Setup after a fatal error"
-            + (n == 0 ? "*****\n" : " %d *****\n")
-						+	"SikuliX is not useable!\n"
-            + "Check the error log at " + Debug.logfile, n));
+      if (Settings.noPupUps) {
+        log(-1, msg, n);
+      } else {
+        popError(String.format(msg, n));
+      }
     } else {
 	    Debug.error("***** Terminating SikuliX after a fatal error"
             + (n == 0 ? "*****\n" : " %d *****\n")
@@ -219,6 +225,7 @@ public class Sikulix {
    * @return success
    */
   public static boolean testSetupSilent() {
+    Settings.noPupUps = true;
     return doTestSetup("Java API", true);
   }
 
@@ -346,13 +353,13 @@ public class Sikulix {
 	/**
 	 * request user's input as one line of text <br>
 	 * with hidden = true: <br>
-	 * the dialog works as password input (input text hidden a s bullets) <br>
-	 * take care to destroy the return value as soon as possible (internally security is granted)
+	 * the dialog works as password input (input text hidden as bullets) <br>
+	 * take care to destroy the return value as soon as possible (internally the password is deleted on return)
 	 * @param msg
 	 * @param preset
 	 * @param title
 	 * @param hidden
-	 * @return
+	 * @return the text entered
 	 */
 	public static String input(String msg, String preset, String title, boolean hidden) {
 		if (!hidden) {
@@ -535,5 +542,61 @@ public class Sikulix {
 
 	public static boolean exportPrefs(String path) {
 		return true;
+	}
+
+	/**
+	 * store a key-value-pair in Javas persistent preferences storage that is used
+	 * by SikuliX to save settings and information between IDE sessions<br>
+	 * this allows, to easily make some valuable information persistent
+	 * @param key name of the item
+	 * @param value item content
+	 */
+	public static void prefStore(String key, String value) {
+		PreferencesUser.getInstance().put(prefNonSikuli + key, value);
+	}
+
+	/**
+	 * retrieve the value of a previously stored a key-value-pair
+	 * from Javas persistent preferences storage that is used
+	 * by SikuliX to save settings and information between IDE sessions<br>
+	 * @param key name of the item
+	 * @return the item content or empty string if not stored yet
+	 */
+	public static String prefLoad(String key) {
+		return PreferencesUser.getInstance().get(prefNonSikuli + key, "");
+	}
+
+	/**
+	 * retrieve the value of a previously stored a key-value-pair
+	 * from Javas persistent preferences storage that is used
+	 * by SikuliX to save settings and information between IDE sessions<br>
+	 * @param key name of the item
+	 * @param value the item content or the given value if not stored yet (default)
+	 * @return the item content or the given default
+	 */
+	public static String prefLoad(String key, String value) {
+		return PreferencesUser.getInstance().get(prefNonSikuli + key, value);
+	}
+
+	/**
+	 * permanently remove the previously stored key-value-pair having the given key
+	 * from Javas persistent preferences storage that is used
+	 * by SikuliX to save settings and information between IDE sessions<br>
+	 * @param key name of the item to permanently remove
+	 * @return the item content that would be returned by prefLoad(key)
+	 */
+	public static String prefRemove(String key) {
+		String val = prefLoad(key);
+		PreferencesUser.getInstance().remove(prefNonSikuli + key);
+		return val;
+	}
+
+	/**
+	 * permanently remove all previously stored key-value-pairs (by prefsStore())
+	 * from Javas persistent preferences storage that is used
+	 * by SikuliX to save settings and information between IDE sessions<br>
+	 */
+	public static void prefRemove() {
+		PreferencesUser.getInstance().removeAll(prefNonSikuli);
 	}
 }
